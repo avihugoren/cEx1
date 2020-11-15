@@ -20,6 +20,8 @@ mains:main.o libmyMath.a
 maind:main.o libmyMath.so
 	gcc $(FLAGS) -o maind main.o ./libmyMath.so
 
+mymathd: libmyMath.so
+mymaths: libmyMath.a
 
 libmyMath.so: basicMath.o power.o
 	gcc -shared -o libmyMath.so basicMath.o power.o
