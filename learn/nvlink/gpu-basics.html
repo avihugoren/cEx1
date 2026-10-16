@@ -1,0 +1,375 @@
+<title>GPU Basics for Firmware</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;500;600&family=Atkinson+Hyperlegible+Next:wght@400;500;600&family=Newsreader:opsz,wght@6..72,500&display=swap" rel="stylesheet">
+<style>
+  /* Layout: Blueprint register. One flush-left column of 64rem; figures full width on a line-grid stage; sticky section bar. */
+  /* Layout: Paper register. Narrow reading column, figures full width, one idea per screen. */
+  :root {
+    color-scheme: light;
+    --bg: #f7f7f4; --surface: #ffffff; --border: #e3e3dc; --border-bright: #8e8e8a;
+    --text: #17191c; --text-dim: #575c63; --accent: #2c4cd0; --accent-dim: rgba(44,76,208,.12);
+    --ok: #1d7443; --warn: #836000; --risk: #b3301d; --info: #1b6a94;
+    --node-top: var(--surface); --lift: rgb(23 25 28 / .10); --halo: 22%;
+    --font-display: 'Newsreader', Georgia, serif;
+    --font-body: 'Atkinson Hyperlegible Next', 'Segoe UI', Helvetica, sans-serif;
+    --font-mono: 'Atkinson Hyperlegible Mono', ui-monospace, Menlo, monospace;
+    --t-label: .75rem; --t-small: .875rem; --t-body: 1rem; --t-lead: 1.25rem; --t-h2: 1.625rem; --t-h1: clamp(2.25rem, 5.5vw, 4rem);
+    --s-1: .25rem; --s-2: .5rem; --s-3: .75rem; --s-4: 1rem; --s-5: 1.5rem; --s-6: 2rem; --s-7: 3rem; --s-8: 4.5rem;
+    --r-1: 4px; --r-2: 10px;
+    --ease: cubic-bezier(.16,1,.3,1); --fast: 150ms; --med: 300ms; --slow: 500ms;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #111316; --surface: #181b1f; --border: #262a30; --border-bright: #62676c;
+      --text: #e8e8e3; --text-dim: #9ba1a9; --accent: #93a6ff; --accent-dim: rgba(147,166,255,.15);
+      --ok: #6cc492; --warn: #e3b94d; --risk: #f0806b; --info: #6fb8dc;
+      --node-top: color-mix(in srgb, var(--text) 7%, var(--surface)); --lift: rgb(0 0 0 / .45); --halo: 32%;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #111316; --surface: #181b1f; --border: #262a30; --border-bright: #62676c;
+    --text: #e8e8e3; --text-dim: #9ba1a9; --accent: #93a6ff; --accent-dim: rgba(147,166,255,.15);
+    --ok: #6cc492; --warn: #e3b94d; --risk: #f0806b; --info: #6fb8dc;
+    --node-top: color-mix(in srgb, var(--text) 7%, var(--surface)); --lift: rgb(0 0 0 / .45); --halo: 32%;
+    color-scheme: dark;
+  }
+
+  html { font-size: 17px; }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 400 var(--t-body)/1.6 var(--font-body); text-wrap: pretty; font-kerning: normal; font-synthesis: none; -webkit-font-smoothing: antialiased; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+  ::selection { background: var(--accent-dim); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  a { color: var(--text); text-decoration: underline; text-decoration-color: var(--border-bright); text-underline-offset: .2em; }
+  a:hover { text-decoration-color: var(--accent); }
+
+  nav.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: color-mix(in srgb, var(--bg) 94%, transparent); border-bottom: 1px solid var(--border); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  nav.bar ul { max-width: 64rem; margin: 0 auto; list-style: none; padding: 0; display: flex; gap: var(--s-5); overflow-x: auto; scrollbar-width: none; mask-image: linear-gradient(90deg, #000 90%, transparent); }
+  nav.bar ul::-webkit-scrollbar { display: none; }
+  nav.bar a { display: block; padding: var(--s-3) 0; font: 500 var(--t-label) var(--font-mono); color: var(--text-dim); text-decoration: none; white-space: nowrap; border-bottom: 2px solid transparent; }
+  nav.bar a.is-on { color: var(--text); border-bottom-color: var(--accent); }
+
+  main { max-width: 64rem; margin: 0 auto; padding-block: var(--s-7) var(--s-8); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-8); }
+  section, figure, header { min-width: 0; }
+  section { display: grid; gap: var(--s-6); scroll-margin-top: 3.5rem; }
+  header { display: grid; gap: var(--s-4); }
+  header + figure { margin-top: calc(var(--s-6) - var(--s-8)); }
+  h1, h2, .kpi .val { text-box: trim-both cap alphabetic; }
+  h1 { font: 500 var(--t-h1)/1.05 var(--font-display); letter-spacing: -.03em; text-wrap: balance; max-width: 18ch; margin-bottom: var(--s-2); }
+  h2 { font: 500 1.875rem/1.15 var(--font-display); letter-spacing: -.015em; text-wrap: balance; max-width: 34ch; }
+  h3 { font-size: var(--t-body); line-height: 1.3; font-weight: 600; }
+  .kicker { display: flex; align-items: center; gap: var(--s-2); font: 600 var(--t-label) var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+  .kicker::before { content: ''; width: 1.25rem; height: 2px; background: currentColor; }
+  .sec-head { display: grid; gap: var(--s-3); }
+  .ve-label { font: 500 var(--t-label) var(--font-mono); color: var(--text-dim); }
+  .lead { font-size: var(--t-lead); line-height: 1.5; color: var(--text-dim); max-width: 46ch; }
+  .lead b { color: var(--text); font-weight: 600; }
+  .meta { font: 500 var(--t-label) var(--font-mono); color: var(--text-dim); }
+  .prose { max-width: 65ch; display: grid; gap: var(--s-3); }
+  .prose p { color: var(--text); }
+  code { font: .875em var(--font-mono); font-variant-ligatures: none; }
+  .unit { font-size: .5em; font-weight: 500; color: var(--text-dim); letter-spacing: 0; }
+
+  /* stage: blueprint 24px line grid */
+  .frame { background: radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--text) 13%, transparent) 1px, transparent 1.5px) 0 0 / 20px 20px, var(--bg); border: 1px solid var(--border); border-radius: var(--r-2); padding: var(--s-5); overflow-x: auto; }
+  figcaption { font-size: var(--t-body); color: var(--text-dim); margin-top: var(--s-3); max-width: 65ch; }
+  .fig-n { font: 600 var(--t-label) var(--font-mono); color: var(--text); margin-right: var(--s-2); }
+
+  .ve-svg { width: 100%; min-width: 720px; height: auto; display: block; font: 500 17px var(--font-body); }
+  .ve-n .sh { fill: url(#ve-node); stroke: var(--border-bright); stroke-width: 1.5; filter: drop-shadow(0 6px 14px var(--lift)); transition: stroke var(--fast) var(--ease), opacity var(--med) var(--ease); }
+  .ve-n .lid { fill: var(--node-top); }
+  .ve-n.is-key .sh { fill: color-mix(in srgb, var(--accent) 11%, var(--surface)); stroke: var(--accent); stroke-width: 2; filter: drop-shadow(0 0 16px color-mix(in srgb, var(--accent) var(--halo), transparent)); }
+  .ve-n text { fill: var(--text); text-anchor: middle; dominant-baseline: central; font-weight: 600; }
+  .ve-n .sub { fill: var(--text-dim); font: 500 14px var(--font-mono); }
+  .ve-n .gl { fill: none; stroke: var(--text-dim); stroke-width: 1.5; stroke-linejoin: round; }
+  .ve-n.is-key .gl { stroke: var(--accent); }
+  .ve-n .tick { fill: none; stroke: var(--border-bright); stroke-width: 1; }
+  .ve-e { fill: none; stroke: var(--text-dim); stroke-width: 1.75; marker-end: url(#ve-ah); }
+  .ve-e.no-ah { marker-end: none; }
+  .ve-e.is-hot { stroke: var(--accent); stroke-width: 2.75; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 55%, transparent)); }
+  .ve-e.is-async { stroke-dasharray: 6 5; }
+  .ve-el { fill: var(--text-dim); font: 500 14px var(--font-mono); text-anchor: middle; paint-order: stroke; stroke: var(--bg); stroke-width: 5px; stroke-linejoin: round; }
+  .ve-el.l { text-anchor: end; } .ve-el.r { text-anchor: start; }
+  .ve-el.hot { fill: var(--accent); }
+  .ve-bd { fill: none; stroke: var(--border-bright); stroke-width: 1; stroke-dasharray: 4 4; }
+  .ve-bdl { fill: var(--text-dim); font: 600 14px var(--font-mono); letter-spacing: .06em; }
+  .ve-dim path { fill: none; stroke-width: 1; } .ve-dim .ext { stroke: var(--border-bright); } .ve-dim .ln { stroke: var(--text-dim); }
+  .ve-dim text { fill: var(--text); font: 500 14px var(--font-mono); text-anchor: middle; paint-order: stroke; stroke: var(--bg); stroke-width: 5px; }
+  .ve-dim.is-key .ln { stroke: var(--accent); } .ve-dim.is-key text { fill: var(--accent); }
+  .ann { fill: none; stroke: var(--text-dim); stroke-width: 1; }
+  .ve-co circle { fill: var(--surface); stroke: var(--accent); stroke-width: 1.75; }
+  .ve-co text { fill: var(--accent); font: 600 14px var(--font-mono); text-anchor: middle; dominant-baseline: central; }
+  .field rect { stroke: var(--border-bright); stroke-width: 1.5; }
+  .field text { fill: var(--text); font: 500 14px var(--font-mono); text-anchor: middle; dominant-baseline: central; }
+  .field .sub { fill: var(--text-dim); font-size: 13px; }
+  .f-crc rect { fill: color-mix(in srgb, var(--accent) 16%, var(--surface)); stroke: var(--accent); }
+  .f-dl rect { fill: color-mix(in srgb, var(--info) 14%, var(--surface)); }
+  .f-tx rect { fill: var(--surface); }
+  .f-opt rect { fill: var(--surface); stroke-dasharray: 4 3; }
+  .f-data rect { fill: var(--node-top); }
+
+  [data-flow] { fill: none; stroke: none; }
+  .ve-dots circle { fill: var(--text); }
+  .ve-dots .req { fill: var(--accent); filter: drop-shadow(0 0 4px var(--accent)); }
+  .ve-steps:not(.is-full) .ve-dots { display: none; }
+
+  .ve-ref { text-decoration: underline dotted var(--text-dim) 1px; text-underline-offset: .22em; border-radius: var(--r-1); transition: background var(--fast) var(--ease); cursor: default; }
+  .ve-ref.is-lit { background: var(--accent-dim); text-decoration-color: var(--accent); }
+  svg [data-ref] { transition: opacity var(--med) var(--ease); }
+  svg.has-lit path[data-ref]:not(.is-lit), svg.has-lit g[data-ref]:not(.is-lit) .sh { opacity: .25; }
+  svg.has-lit g[data-ref]:not(.is-lit) text, svg.has-lit text[data-ref]:not(.is-lit) { fill: var(--text-dim); }
+  .ve-n.is-lit .sh { stroke: var(--accent); }
+  .ve-e.is-lit { stroke: var(--accent); }
+  .ve-el.is-lit { fill: var(--text); }
+  .unit-card.is-lit { border-color: var(--accent); }
+
+  .ve-steps [data-s] { transition: opacity var(--slow) var(--ease), stroke-dashoffset var(--slow) var(--ease); }
+  .ve-steps [data-s]:not(.on) { opacity: .15; }
+  .ve-steps g[data-s]:not(.on) text, .ve-steps text[data-s]:not(.on) { opacity: 0; }
+  .ve-steps path[pathLength][data-s] { stroke-dasharray: 1; stroke-dashoffset: 1; }
+  .ve-steps path[pathLength][data-s].on { stroke-dashoffset: 0; }
+  .ve-steps .ve-n.now > .sh { stroke: var(--accent); }
+  .ve-steps:not(.is-full) .ve-e.now { stroke: var(--accent); stroke-width: 2.75; }
+  .ve-tok { fill: var(--accent); visibility: hidden; }
+  .ve-steps:not(.is-still) .ve-tok.now { visibility: visible; animation: ve-run var(--dur, 900ms) ease-in-out var(--d, 0ms) both; }
+  @keyframes ve-run { from { offset-distance: 0%; opacity: 0; } 10%, 75% { opacity: 1; } to { offset-distance: 100%; opacity: 0; } }
+  .ve-player { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; gap: var(--s-2) var(--s-3); margin-top: var(--s-4); }
+  .ve-cap { grid-column: 1 / -1; list-style: none; padding: 0; min-height: 3.2em; }
+  .ve-cap li::before { content: attr(data-n); font: 600 var(--t-label) var(--font-mono); color: var(--accent); margin-right: var(--s-3); font-variant-numeric: tabular-nums; }
+  .ve-player input { accent-color: var(--accent); min-width: 0; }
+  button { font: 500 var(--t-small) var(--font-mono); color: var(--text); background: var(--surface); border: 1px solid var(--border-bright); border-radius: var(--r-1); padding: var(--s-2) var(--s-3); cursor: pointer; transition: border-color var(--fast) var(--ease); }
+  button:hover, button:focus-visible { border-color: var(--accent); }
+
+  .kpis { display: flex; flex-wrap: wrap; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--r-1); overflow: hidden; }
+  .kpi { flex: 1 1 14rem; background: var(--surface); padding: var(--s-5); display: grid; grid-template-rows: auto auto 1fr; gap: var(--s-3); min-width: 0; }
+  .kpi .val { font: 600 2.75rem/1 var(--font-body); font-variant-numeric: tabular-nums; letter-spacing: -.04em; }
+  .ve-bars { align-self: end; width: 100%; max-width: 17rem; height: auto; font: 500 13px var(--font-mono); overflow: visible; }
+  .ve-bars text { fill: var(--text-dim); dominant-baseline: central; }
+  .ve-bars rect { fill: var(--border-bright); }
+  .ve-bars .hot { fill: var(--accent); }
+  .ve-bars .hot + text { fill: var(--text); }
+
+  .units { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: var(--s-4); }
+  .unit-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-1); padding: var(--s-4); display: grid; gap: var(--s-2); align-content: start; transition: border-color var(--fast) var(--ease); }
+  .unit-card p { color: var(--text-dim); }
+  .unit-card .ve-label { color: var(--accent); }
+
+  .cases { display: grid; grid-template-columns: repeat(auto-fit, minmax(14.5rem, 1fr)); gap: var(--s-4); }
+  .case { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-1); padding: var(--s-4); display: grid; gap: var(--s-3); align-content: start; }
+  .case[data-st=ok] { --st: var(--ok); } .case[data-st=warn] { --st: var(--warn); } .case[data-st=risk] { --st: var(--risk); } .case[data-st=info] { --st: var(--info); }
+  .ve-mini { width: 100%; max-width: 20rem; height: auto; font: 600 15px var(--font-body); }
+  .ve-mini .ve-n .sh { filter: none; }
+  .ve-mini .ve-n .sub { font-size: 13px; }
+  .ve-mini .ve-el { font-size: 13px; }
+  .ve-mini .is-st.ve-e { stroke: var(--st); stroke-width: 2.75; }
+  .ve-mini .is-st .sh { stroke: var(--st); stroke-width: 2; }
+  .ve-mini .is-st .sub, .ve-mini .ve-el.is-st { fill: var(--st); }
+  .ve-mini .is-off { stroke-dasharray: 5 4; }
+  .ve-mini .ve-e.is-off { opacity: .45; }
+
+  .chip { display: inline-flex; align-items: center; gap: var(--s-2); font: 600 var(--t-label) var(--font-mono); padding: 2px var(--s-2); border: 1px solid currentColor; border-radius: var(--r-1); white-space: nowrap; justify-self: start; }
+  .chip::before { content: ''; width: .5rem; height: .5rem; background: currentColor; }
+  .chip.ok { color: var(--ok); } .chip.ok::before { border-radius: 50%; }
+  .chip.warn { color: var(--warn); } .chip.warn::before { clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+  .chip.risk { color: var(--risk); }
+  .chip.info { color: var(--info); } .chip.info::before { transform: rotate(45deg) scale(.8); }
+
+  .callout { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-1); padding: var(--s-4); display: grid; gap: var(--s-3); max-width: 65ch; }
+  .callout ul { padding-left: 1.1em; display: grid; gap: var(--s-2); }
+  .callout li::marker { color: var(--text-dim); }
+
+  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--r-1); }
+  table { border-collapse: collapse; width: 100%; min-width: 34rem; }
+  th { background: var(--surface); font: 500 var(--t-label) var(--font-mono); color: var(--text-dim); text-align: left; padding: var(--s-3) var(--s-4); }
+  td { padding: var(--s-3) var(--s-4); border-top: 1px solid var(--border); }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .remember { max-width: 65ch; display: grid; gap: var(--s-3); padding-left: 1.4em; }
+  .remember li::marker { font: 600 var(--t-small) var(--font-mono); color: var(--accent); }
+  .sources { border-top: 1px solid var(--border); padding-top: var(--s-4); display: grid; gap: var(--s-2); color: var(--text-dim); }
+  .sources ul { padding-left: 1.1em; display: grid; gap: var(--s-1); }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } .ve-tok { display: none; } }
+  .map { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: var(--s-4); }
+  .map a.unit-card { text-decoration: none; color: var(--text); }
+  .map a.unit-card:hover, .map a.unit-card:focus-visible { border-color: var(--accent); }
+  .map .unit-card .ve-label { color: var(--text-dim); }
+</style>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="ve-ah" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M0 0L10 5L0 10z" fill="context-stroke"/></marker>
+    <linearGradient id="ve-node" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--node-top)"/><stop offset="1" style="stop-color:var(--surface)"/></linearGradient>
+    <pattern id="lanes" width="12" height="12" patternUnits="userSpaceOnUse"><rect x="1.5" y="1.5" width="9" height="9" rx="1.5" style="fill:var(--accent-dim);stroke:var(--accent);stroke-width:1"/></pattern>
+  </defs>
+</svg>
+
+<nav class="bar" aria-label="Sections">
+  <ul>
+    <li><a href="#idea">Main idea</a></li>
+    <li><a href="#units">Main units</a></li>
+    <li><a href="#why">Why NVLink</a></li>
+    <li><a href="#switch">NVSwitch</a></li>
+    <li><a href="#you">Your layer</a></li>
+    <li><a href="#next">Deep dives</a></li>
+  </ul>
+</nav>
+
+<main>
+  <header id="idea">
+    <p class="kicker">Start here · GPU basics</p>
+    <h1>A GPU does one simple step on huge amounts of data at once</h1>
+    <p class="lead">A CPU has <b>a few strong cores</b>. A GPU has <b>thousands of simple lanes</b> that all run the same instruction. AI and graphics are made of exactly that kind of work.</p>
+    <p class="meta">Example GPU: NVIDIA H100 · Level 1 of a series · no protocol detail yet</p>
+  </header>
+
+  <figure>
+    <div class="frame">
+      <svg class="ve-svg" viewBox="0 0 960 300" role="img" aria-label="Left: a CPU with 4 large cores, each working on its own task. Right: a GPU with a grid of many small lanes, all running the same step on different pieces of data.">
+        <text class="ve-bdl" x="20" y="24">CPU · FEW STRONG CORES</text>
+        <g class="ve-n"><rect class="sh" x="20" y="44" width="150" height="100" rx="6"/><text x="95" y="84">core</text><text class="sub" x="95" y="110">task A</text></g>
+        <g class="ve-n"><rect class="sh" x="190" y="44" width="150" height="100" rx="6"/><text x="265" y="84">core</text><text class="sub" x="265" y="110">task B</text></g>
+        <g class="ve-n"><rect class="sh" x="20" y="164" width="150" height="100" rx="6"/><text x="95" y="204">core</text><text class="sub" x="95" y="230">task C</text></g>
+        <g class="ve-n"><rect class="sh" x="190" y="164" width="150" height="100" rx="6"/><text x="265" y="204">core</text><text class="sub" x="265" y="230">task D</text></g>
+
+        <text class="ve-bdl" x="420" y="24">GPU · THOUSANDS OF SIMPLE LANES</text>
+        <rect x="420" y="44" width="516" height="216" fill="url(#lanes)"/>
+        <g class="ve-dim is-key"><path class="ext" d="M420 266V290M936 266V290"/><path class="ln" d="M420 284H936M416 288l8-8M932 288l8-8"/><text x="678" y="278">132 SMs × 128 lanes ≈ 16,900 lanes</text></g>
+        <g class="ve-n is-key"><rect class="sh" x="560" y="122" width="236" height="60" rx="6"/><text x="678" y="142">same step</text><text class="sub" x="678" y="164">on different data</text></g>
+      </svg>
+    </div>
+    <figcaption><span class="fig-n">Fig. 1</span>Each small square is one lane. Groups of 32 lanes move together, so the GPU is fast only when lots of data needs the same work.</figcaption>
+  </figure>
+
+  <section id="units">
+    <div class="sec-head"><p class="kicker">Main units</p><h2>Six blocks do almost all the work</h2></div>
+    <figure>
+      <div class="frame">
+        <svg class="ve-svg" viewBox="0 0 960 330" role="img" aria-label="The CPU host sends commands over PCIe to the GPU front end. The front end hands work to the SMs. The SMs load and store through the L2 cache. L2 misses go to HBM memory. Addresses on another GPU go out through NVLink. The GSP runs firmware that manages the GPU.">
+          <rect class="ve-bd" x="196" y="20" width="744" height="300" rx="6"/><text class="ve-bdl" x="210" y="44">GPU</text>
+
+          <path class="ve-e" data-ref="host" d="M150 150H228"/><text class="ve-el" data-ref="host" x="189" y="140">PCIe</text>
+          <path class="ve-e" data-ref="fe" d="M360 150H418"/><text class="ve-el" data-ref="fe" x="389" y="140">work</text>
+          <path class="ve-e" data-ref="l2" d="M600 150H648"/><text class="ve-el" data-ref="l2" x="624" y="140">ld/st</text>
+          <path class="ve-e" data-ref="hbm" d="M760 150H798"/><text class="ve-el" data-ref="hbm" x="779" y="140">miss</text>
+          <path class="ve-e" data-ref="nvl" d="M705 196V238"/><text class="ve-el r" data-ref="nvl" x="713" y="222">remote</text>
+          <path class="ve-e" data-ref="nvl" d="M760 266H952"/><text class="ve-el" data-ref="nvl" x="856" y="256">other GPUs</text>
+          <path class="ve-e is-async" data-ref="gsp" d="M295 236V198"/><text class="ve-el r" data-ref="gsp" x="303" y="222">manages</text>
+
+          <g class="ve-n" data-ref="host"><rect class="sh" x="16" y="104" width="134" height="92" rx="6"/><text x="83" y="138">CPU host</text><text class="sub" x="83" y="164">your app</text></g>
+          <g class="ve-n" data-ref="fe"><rect class="sh" x="230" y="104" width="130" height="92" rx="6"/><text x="295" y="138">Front end</text><text class="sub" x="295" y="164">reads work</text></g>
+          <g class="ve-n is-key" data-ref="sm"><rect class="sh" x="420" y="70" width="180" height="160" rx="6"/><text x="510" y="132">SMs</text><text class="sub" x="510" y="160">×132</text><text class="sub" x="510" y="184">run threads</text></g>
+          <g class="ve-n" data-ref="l2"><rect class="sh" x="650" y="104" width="110" height="92" rx="6"/><text x="705" y="138">L2</text><text class="sub" x="705" y="164">50 MB</text></g>
+          <g class="ve-n" data-ref="hbm"><path class="sh" d="M800 112V188A62 10 0 0 0 924 188V112"/><ellipse class="sh lid" cx="862" cy="112" rx="62" ry="10"/><text x="862" y="146">HBM</text><text class="sub" x="862" y="170">80 GB</text></g>
+          <g class="ve-n" data-ref="nvl"><rect class="sh" x="650" y="240" width="110" height="56" rx="6"/><text x="705" y="268">NVLink</text></g>
+          <g class="ve-n" data-ref="gsp"><rect class="sh" x="230" y="238" width="130" height="62" rx="6"/><text x="295" y="258">GSP</text><text class="sub" x="295" y="280">firmware</text></g>
+        </svg>
+      </div>
+      <figcaption><span class="fig-n">Fig. 2</span>Work comes in from the host, runs on the SMs, and reads memory through the L2. Hover a card to find its block.</figcaption>
+    </figure>
+
+    <div class="units">
+      <div class="unit-card" data-ref="host"><span class="ve-label">CPU host · PCIe</span><h3>Gives the orders</h3><p>Your program runs on the CPU. The driver sends the GPU commands and data over PCIe.</p></div>
+      <div class="unit-card" data-ref="fe"><span class="ve-label">Front end</span><h3>Reads the to-do list</h3><p>It reads command buffers from memory and starts kernels: functions that run on thousands of threads.</p></div>
+      <div class="unit-card" data-ref="sm"><span class="ve-label">SM · streaming multiprocessor</span><h3>Does the math</h3><p>The GPU’s core. Each SM runs many groups of 32 threads (warps) and has its own small fast memory.</p></div>
+      <div class="unit-card" data-ref="l2"><span class="ve-label">L2 cache</span><h3>Shared fast memory</h3><p>One cache for the whole chip. Every SM reads and writes through it.</p></div>
+      <div class="unit-card" data-ref="hbm"><span class="ve-label">HBM</span><h3>The big memory</h3><p>Memory chips stacked next to the GPU. Large and fast, but slower than L2.</p></div>
+      <div class="unit-card" data-ref="gsp"><span class="ve-label">GSP · firmware</span><h3>The GPU’s own small computer</h3><p>A RISC-V core inside the GPU. It runs firmware that boots and manages the chip.</p></div>
+    </div>
+  </section>
+
+  <section id="why">
+    <div class="sec-head"><p class="kicker">Why NVLink</p><h2>One GPU is not enough, so GPUs must share data fast</h2></div>
+    <div class="prose"><p>Big AI models do not fit in one GPU, so the work is split across many GPUs. They must swap results all the time. PCIe is too slow for that. NVLink is a direct, much faster path between GPUs.</p></div>
+    <figure>
+      <div class="frame">
+        <svg class="ve-svg" viewBox="0 0 960 190" role="img" aria-label="Bandwidth out of one H100: PCIe Gen5 128 GB/s, NVLink 900 GB/s, and its own HBM memory 3,350 GB/s.">
+          <text class="ve-el r" x="20" y="44" style="font-size:16px">PCIe 5</text><rect x="160" y="28" width="30" height="28" rx="3" style="fill:var(--border-bright)"/><text class="ve-el r" x="200" y="44" style="font-size:16px">128 GB/s</text>
+          <text class="ve-el r" x="20" y="96" style="font-size:16px;fill:var(--text)">NVLink 4</text><rect x="160" y="80" width="208" height="28" rx="3" style="fill:var(--accent)"/><text class="ve-el r" x="378" y="96" style="font-size:16px;fill:var(--text)">900 GB/s · about 7× PCIe</text>
+          <text class="ve-el r" x="20" y="148" style="font-size:16px">HBM</text><rect x="160" y="132" width="776" height="28" rx="3" style="fill:var(--border-bright);opacity:.55"/><text class="ve-el l" x="926" y="148" style="font-size:16px;fill:var(--text)">3,350 GB/s</text>
+        </svg>
+      </div>
+      <figcaption><span class="fig-n">Fig. 3</span>NVLink is about 7× faster than PCIe, but still slower than a GPU’s own memory. Good software keeps most traffic local.</figcaption>
+    </figure>
+  </section>
+
+  <section id="switch">
+    <div class="sec-head"><p class="kicker">NVSwitch</p><h2>A switch lets every GPU talk to every other GPU at full speed</h2></div>
+    <figure>
+      <div class="cases">
+        <div class="case" data-st="info"><span class="chip info">2 GPUs</span><h3>Direct link</h3>
+          <svg class="ve-mini" viewBox="0 0 240 130" role="img" aria-label="Two GPUs joined directly by NVLink.">
+            <path class="ve-e is-st no-ah" d="M86 64H154"/><text class="ve-el" x="120" y="54">NVLink</text>
+            <g class="ve-n"><rect class="sh" x="10" y="40" width="76" height="48" rx="6"/><text x="48" y="64">GPU</text></g>
+            <g class="ve-n"><rect class="sh" x="154" y="40" width="76" height="48" rx="6"/><text x="192" y="64">GPU</text></g>
+          </svg></div>
+        <div class="case" data-st="warn"><span class="chip warn">4 GPUs, no switch</span><h3>Links get split</h3>
+          <svg class="ve-mini" viewBox="0 0 240 130" role="img" aria-label="Four GPUs wired to each other directly. Each GPU splits its links three ways, so each pair gets only a third of the bandwidth.">
+            <path class="ve-e no-ah is-st" d="M70 30H170M70 100H170M40 50V80M200 50V80M70 40L170 90M70 90L170 40"/>
+            <g class="ve-n"><rect class="sh" x="10" y="10" width="60" height="40" rx="6"/><text x="40" y="30">GPU</text></g>
+            <g class="ve-n"><rect class="sh" x="170" y="10" width="60" height="40" rx="6"/><text x="200" y="30">GPU</text></g>
+            <g class="ve-n"><rect class="sh" x="10" y="80" width="60" height="40" rx="6"/><text x="40" y="100">GPU</text></g>
+            <g class="ve-n"><rect class="sh" x="170" y="80" width="60" height="40" rx="6"/><text x="200" y="100">GPU</text></g>
+          </svg></div>
+        <div class="case" data-st="ok"><span class="chip ok">8 GPUs + NVSwitch</span><h3>Full speed, any pair</h3>
+          <svg class="ve-mini" viewBox="0 0 240 130" role="img" aria-label="Eight GPUs all connected to an NVSwitch. Any GPU reaches any other at full NVLink speed.">
+            <path class="ve-e no-ah is-st" d="M22 34L120 88M50 34L120 88M78 34L120 88M106 34L120 88M134 34L120 88M162 34L120 88M190 34L120 88M218 34L120 88"/>
+            <g class="ve-n"><rect class="sh" x="10" y="10" width="24" height="24" rx="3"/><rect class="sh" x="38" y="10" width="24" height="24" rx="3"/><rect class="sh" x="66" y="10" width="24" height="24" rx="3"/><rect class="sh" x="94" y="10" width="24" height="24" rx="3"/><rect class="sh" x="122" y="10" width="24" height="24" rx="3"/><rect class="sh" x="150" y="10" width="24" height="24" rx="3"/><rect class="sh" x="178" y="10" width="24" height="24" rx="3"/><rect class="sh" x="206" y="10" width="24" height="24" rx="3"/></g>
+            <g class="ve-n is-st"><rect class="sh" x="60" y="86" width="120" height="40" rx="6"/><text x="120" y="106">NVSwitch</text></g>
+          </svg></div>
+      </div>
+      <figcaption><span class="fig-n">Fig. 4</span>Without a switch, each GPU must split its links among its neighbours. With NVSwitch, every pair gets the full 900 GB/s.</figcaption>
+    </figure>
+  </section>
+
+  <section id="you">
+    <div class="sec-head"><p class="kicker">Your layer</p><h2>Firmware sits between the driver and the silicon</h2></div>
+    <figure>
+      <div class="frame">
+        <svg class="ve-svg" viewBox="0 0 960 190" role="img" aria-label="Software stack from left to right: your app, CUDA libraries, the driver on the CPU, firmware on the GPU, and the hardware. Firmware is highlighted.">
+          <path class="ve-e" d="M160 80H190"/><path class="ve-e" d="M340 80H370"/><path class="ve-e" d="M520 80H550"/><path class="ve-e" d="M740 80H770"/>
+          <g class="ve-n"><rect class="sh" x="16" y="40" width="144" height="80" rx="6"/><text x="88" y="70">App</text><text class="sub" x="88" y="94">PyTorch…</text></g>
+          <g class="ve-n"><rect class="sh" x="192" y="40" width="148" height="80" rx="6"/><text x="266" y="70">CUDA</text><text class="sub" x="266" y="94">libraries</text></g>
+          <g class="ve-n"><rect class="sh" x="372" y="40" width="148" height="80" rx="6"/><text x="446" y="70">Driver</text><text class="sub" x="446" y="94">on the CPU</text></g>
+          <g class="ve-n is-key"><rect class="sh" x="552" y="40" width="188" height="80" rx="6"/><text x="646" y="70">Firmware</text><text class="sub" x="646" y="94">on the GPU</text></g>
+          <g class="ve-n"><rect class="sh" x="772" y="40" width="168" height="80" rx="6"/><text x="856" y="70">Hardware</text><text class="sub" x="856" y="94">SM · HBM · NVLink</text></g>
+          <path class="ann" d="M646 120V148"/><text class="ve-el hot" x="646" y="170">you are here</text>
+        </svg>
+      </div>
+      <figcaption><span class="fig-n">Fig. 5</span>Firmware brings the hardware up and keeps it healthy: boot, power, clocks, security, and on the NVLink side, link training and error handling.</figcaption>
+    </figure>
+  </section>
+
+  <section id="next">
+    <div class="sec-head"><p class="kicker">Deep dives</p><h2>Go deeper one layer at a time</h2></div>
+    <div class="map">
+      <a class="unit-card" href="https://claude.ai/artifact/Xi5x4zrhVAFWWzYdcBWBzd" target="_blank" rel="noopener"><span class="chip ok">Ready</span><span class="ve-label">Level 2</span><h3>NVLink in depth</h3><p>A remote load step by step, the protocol layers, packet format, link states and NVSwitch.</p></a>
+      <a class="unit-card" href="https://claude.ai/artifact/LZwSGiRcSWfaU8FUU94Hgj" target="_blank" rel="noopener"><span class="chip ok">Ready</span><span class="ve-label">Level 2 · interactive</span><h3>NVLink Link Bench</h3><p>Watch flits, credits and a replay after a bit error, for NVLink 1 to 5.</p></a>
+      <div class="unit-card"><span class="chip info">Ask for it</span><span class="ve-label">Level 3</span><h3>Inside the SM and memory</h3><p>Warps, registers, shared memory, L1 and L2, and how a load finds its data.</p></div>
+      <div class="unit-card"><span class="chip info">Ask for it</span><span class="ve-label">Level 3</span><h3>GPU boot and the GSP</h3><p>What runs first, how firmware is loaded and checked, and what the GSP manages.</p></div>
+      <div class="unit-card"><span class="chip info">Ask for it</span><span class="ve-label">Level 3</span><h3>Link training</h3><p>How a link goes from OFF to full speed, and what firmware checks at each step.</p></div>
+      <div class="unit-card"><span class="chip info">Ask for it</span><span class="ve-label">Level 3</span><h3>NVSwitch fabric</h3><p>Routing, Fabric Manager, SHARP, and large systems like NVL72.</p></div>
+    </div>
+  </section>
+</main>
+
+<script>
+  const linked = [...document.querySelectorAll('[data-ref]')], refs = (el) => el.dataset.ref.split(' ');
+  let hovered = null;
+  const paint = () => {
+    const keys = hovered?.dataset.ref.split(' ') ?? [];
+    for (const t of linked) t.classList.toggle('is-lit', refs(t).some((k) => keys.includes(k)));
+    for (const svg of document.querySelectorAll('svg')) svg.classList.toggle('has-lit', !!svg.querySelector('.is-lit'));
+  };
+  for (const el of linked) {
+    el.addEventListener('pointerenter', () => { hovered = el; paint(); });
+    el.addEventListener('pointerleave', () => { hovered = null; paint(); });
+  }
+  const navLinks = [...document.querySelectorAll('nav.bar a')];
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) if (e.isIntersecting) for (const a of navLinks) a.classList.toggle('is-on', a.getAttribute('href') === '#' + e.target.id);
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  for (const a of navLinks) { const s = document.querySelector(a.getAttribute('href')); if (s) io.observe(s); }
+</script>
