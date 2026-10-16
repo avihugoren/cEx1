@@ -1,0 +1,534 @@
+<title>Where NVLink Code Runs</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Layout: Blueprint register. One flush-left column of 64rem; figures full width on a line-grid stage; sticky section bar. */
+  :root {
+    color-scheme: dark;
+    --bg: #0d1520; --surface: #132031; --border: #22324a; --border-bright: #596b87;
+    --text: #e3ecf5; --text-dim: #92a6bb; --accent: #ffb547; --accent-dim: rgba(255,181,71,.15);
+    --ok: #6fd3a0; --warn: #e8d36a; --risk: #ff7b6b; --info: #7cc0f0;
+    --node-top: color-mix(in srgb, var(--text) 7%, var(--surface)); --lift: rgb(0 0 0 / .45); --halo: 32%;
+    --font-body: 'IBM Plex Sans', 'Segoe UI', Helvetica, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+    --t-label: .75rem; --t-small: .875rem; --t-body: 1rem; --t-lead: 1.25rem; --t-h2: 1.625rem; --t-h1: clamp(2.25rem, 5.5vw, 4rem);
+    --s-1: .25rem; --s-2: .5rem; --s-3: .75rem; --s-4: 1rem; --s-5: 1.5rem; --s-6: 2rem; --s-7: 3rem; --s-8: 4.5rem;
+    --r-1: 4px; --r-2: 10px;
+    --ease: cubic-bezier(.16,1,.3,1); --fast: 150ms; --med: 300ms; --slow: 500ms;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f2f6fa; --surface: #ffffff; --border: #d6e0ea; --border-bright: #818f9e;
+      --text: #0f1a26; --text-dim: #4d6074; --accent: #a34700; --accent-dim: rgba(163,71,0,.12);
+      --ok: #1c7443; --warn: #776300; --risk: #b0341e; --info: #145f99;
+      --node-top: var(--surface); --lift: rgb(15 26 38 / .12); --halo: 22%;
+      color-scheme: light;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f2f6fa; --surface: #ffffff; --border: #d6e0ea; --border-bright: #818f9e;
+    --text: #0f1a26; --text-dim: #4d6074; --accent: #a34700; --accent-dim: rgba(163,71,0,.12);
+    --ok: #1c7443; --warn: #776300; --risk: #b0341e; --info: #145f99;
+    --node-top: var(--surface); --lift: rgb(15 26 38 / .12); --halo: 22%;
+    color-scheme: light;
+  }
+
+  html { font-size: 17px; }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 400 var(--t-body)/1.6 var(--font-body); text-wrap: pretty; font-kerning: normal; font-synthesis: none; -webkit-font-smoothing: antialiased; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+  ::selection { background: var(--accent-dim); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  a { color: var(--text); text-decoration: underline; text-decoration-color: var(--border-bright); text-underline-offset: .2em; }
+  a:hover { text-decoration-color: var(--accent); }
+
+  nav.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: color-mix(in srgb, var(--bg) 94%, transparent); border-bottom: 1px solid var(--border); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  nav.bar ul { max-width: 64rem; margin: 0 auto; list-style: none; padding: 0; display: flex; gap: var(--s-5); overflow-x: auto; scrollbar-width: none; mask-image: linear-gradient(90deg, #000 90%, transparent); }
+  nav.bar ul::-webkit-scrollbar { display: none; }
+  nav.bar a { display: block; padding: var(--s-3) 0; font: 500 var(--t-label) var(--font-mono); color: var(--text-dim); text-decoration: none; white-space: nowrap; border-bottom: 2px solid transparent; }
+  nav.bar a.is-on { color: var(--text); border-bottom-color: var(--accent); }
+
+  main { max-width: 64rem; margin: 0 auto; padding-block: var(--s-7) var(--s-8); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-8); }
+  section, figure, header { min-width: 0; }
+  section { display: grid; gap: var(--s-6); scroll-margin-top: 3.5rem; }
+  header { display: grid; gap: var(--s-4); }
+  header + figure { margin-top: calc(var(--s-6) - var(--s-8)); }
+  h1, h2, .kpi .val { text-box: trim-both cap alphabetic; }
+  h1 { font-size: var(--t-h1); line-height: 1.05; font-weight: 600; letter-spacing: -.035em; text-wrap: balance; max-width: 18ch; margin-bottom: var(--s-2); }
+  h2 { font-size: var(--t-h2); line-height: 1.2; font-weight: 600; letter-spacing: -.015em; text-wrap: balance; max-width: 34ch; }
+  h3 { font-size: var(--t-body); line-height: 1.3; font-weight: 600; }
+  .kicker { display: flex; align-items: center; gap: var(--s-2); font: 600 var(--t-label) var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+  .kicker::before { content: ''; width: 1.25rem; height: 2px; background: currentColor; }
+  .sec-head { display: grid; gap: var(--s-3); }
+  .ve-label { font: 500 var(--t-label) var(--font-mono); color: var(--text-dim); }
+  .lead { font-size: var(--t-lead); line-height: 1.5; color: var(--text-dim); max-width: 46ch; }
+  .lead b { color: var(--text); font-weight: 600; }
+  .meta { font: 500 var(--t-label) var(--font-mono); color: var(--text-dim); }
+  .prose { max-width: 65ch; display: grid; gap: var(--s-3); }
+  .prose p { color: var(--text); }
+  code { font: .875em var(--font-mono); font-variant-ligatures: none; }
+  .unit { font-size: .5em; font-weight: 500; color: var(--text-dim); letter-spacing: 0; }
+
+  /* stage: blueprint 24px line grid */
+  .frame { background: linear-gradient(color-mix(in srgb, var(--border) 55%, transparent) 1px, transparent 1px) 0 0 / 24px 24px, linear-gradient(90deg, color-mix(in srgb, var(--border) 55%, transparent) 1px, transparent 1px) 0 0 / 24px 24px, var(--bg); border: 1px solid var(--border); border-radius: var(--r-1); padding: var(--s-5); overflow-x: auto; }
+  figcaption { font-size: var(--t-body); color: var(--text-dim); margin-top: var(--s-3); max-width: 65ch; }
+  .fig-n { font: 600 var(--t-label) var(--font-mono); color: var(--text); margin-right: var(--s-2); }
+
+  .ve-svg { width: 100%; min-width: 720px; height: auto; display: block; font: 500 17px var(--font-body); }
+  .ve-n .sh { fill: url(#ve-node); stroke: var(--border-bright); stroke-width: 1.5; filter: drop-shadow(0 6px 14px var(--lift)); transition: stroke var(--fast) var(--ease), opacity var(--med) var(--ease); }
+  .ve-n .lid { fill: var(--node-top); }
+  .ve-n.is-key .sh { fill: color-mix(in srgb, var(--accent) 11%, var(--surface)); stroke: var(--accent); stroke-width: 2; filter: drop-shadow(0 0 16px color-mix(in srgb, var(--accent) var(--halo), transparent)); }
+  .ve-n text { fill: var(--text); text-anchor: middle; dominant-baseline: central; font-weight: 600; }
+  .ve-n .sub { fill: var(--text-dim); font: 500 14px var(--font-mono); }
+  .ve-n .gl { fill: none; stroke: var(--text-dim); stroke-width: 1.5; stroke-linejoin: round; }
+  .ve-n.is-key .gl { stroke: var(--accent); }
+  .ve-n .tick { fill: none; stroke: var(--border-bright); stroke-width: 1; }
+  .ve-e { fill: none; stroke: var(--text-dim); stroke-width: 1.75; marker-end: url(#ve-ah); }
+  .ve-e.no-ah { marker-end: none; }
+  .ve-e.is-hot { stroke: var(--accent); stroke-width: 2.75; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 55%, transparent)); }
+  .ve-e.is-async { stroke-dasharray: 6 5; }
+  .ve-el { fill: var(--text-dim); font: 500 14px var(--font-mono); text-anchor: middle; paint-order: stroke; stroke: var(--bg); stroke-width: 5px; stroke-linejoin: round; }
+  .ve-el.l { text-anchor: end; } .ve-el.r { text-anchor: start; }
+  .ve-el.hot { fill: var(--accent); }
+  .ve-bd { fill: none; stroke: var(--border-bright); stroke-width: 1; stroke-dasharray: 4 4; }
+  .ve-bdl { fill: var(--text-dim); font: 600 14px var(--font-mono); letter-spacing: .06em; }
+  .ve-dim path { fill: none; stroke-width: 1; } .ve-dim .ext { stroke: var(--border-bright); } .ve-dim .ln { stroke: var(--text-dim); }
+  .ve-dim text { fill: var(--text); font: 500 14px var(--font-mono); text-anchor: middle; paint-order: stroke; stroke: var(--bg); stroke-width: 5px; }
+  .ve-dim.is-key .ln { stroke: var(--accent); } .ve-dim.is-key text { fill: var(--accent); }
+  .ann { fill: none; stroke: var(--text-dim); stroke-width: 1; }
+  .ve-co circle { fill: var(--surface); stroke: var(--accent); stroke-width: 1.75; }
+  .ve-co text { fill: var(--accent); font: 600 14px var(--font-mono); text-anchor: middle; dominant-baseline: central; }
+  .field rect { stroke: var(--border-bright); stroke-width: 1.5; }
+  .field text { fill: var(--text); font: 500 14px var(--font-mono); text-anchor: middle; dominant-baseline: central; }
+  .field .sub { fill: var(--text-dim); font-size: 13px; }
+  .f-crc rect { fill: color-mix(in srgb, var(--accent) 16%, var(--surface)); stroke: var(--accent); }
+  .f-dl rect { fill: color-mix(in srgb, var(--info) 14%, var(--surface)); }
+  .f-tx rect { fill: var(--surface); }
+  .f-opt rect { fill: var(--surface); stroke-dasharray: 4 3; }
+  .f-data rect { fill: var(--node-top); }
+
+  [data-flow] { fill: none; stroke: none; }
+  .ve-dots circle { fill: var(--text); }
+  .ve-dots .req { fill: var(--accent); filter: drop-shadow(0 0 4px var(--accent)); }
+  .ve-steps:not(.is-full) .ve-dots { display: none; }
+
+  .ve-ref { text-decoration: underline dotted var(--text-dim) 1px; text-underline-offset: .22em; border-radius: var(--r-1); transition: background var(--fast) var(--ease); cursor: default; }
+  .ve-ref.is-lit { background: var(--accent-dim); text-decoration-color: var(--accent); }
+  svg [data-ref] { transition: opacity var(--med) var(--ease); }
+  svg.has-lit path[data-ref]:not(.is-lit), svg.has-lit g[data-ref]:not(.is-lit) .sh { opacity: .25; }
+  svg.has-lit g[data-ref]:not(.is-lit) text, svg.has-lit text[data-ref]:not(.is-lit) { fill: var(--text-dim); }
+  .ve-n.is-lit .sh { stroke: var(--accent); }
+  .ve-e.is-lit { stroke: var(--accent); }
+  .ve-el.is-lit { fill: var(--text); }
+  .unit-card.is-lit { border-color: var(--accent); }
+
+  .ve-steps [data-s] { transition: opacity var(--slow) var(--ease), stroke-dashoffset var(--slow) var(--ease); }
+  .ve-steps [data-s]:not(.on) { opacity: .15; }
+  .ve-steps g[data-s]:not(.on) text, .ve-steps text[data-s]:not(.on) { opacity: 0; }
+  .ve-steps path[pathLength][data-s] { stroke-dasharray: 1; stroke-dashoffset: 1; }
+  .ve-steps path[pathLength][data-s].on { stroke-dashoffset: 0; }
+  .ve-steps .ve-n.now > .sh { stroke: var(--accent); }
+  .ve-steps:not(.is-full) .ve-e.now { stroke: var(--accent); stroke-width: 2.75; }
+  .ve-tok { fill: var(--accent); visibility: hidden; }
+  .ve-steps:not(.is-still) .ve-tok.now { visibility: visible; animation: ve-run var(--dur, 900ms) ease-in-out var(--d, 0ms) both; }
+  @keyframes ve-run { from { offset-distance: 0%; opacity: 0; } 10%, 75% { opacity: 1; } to { offset-distance: 100%; opacity: 0; } }
+  .ve-player { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; gap: var(--s-2) var(--s-3); margin-top: var(--s-4); }
+  .ve-cap { grid-column: 1 / -1; list-style: none; padding: 0; min-height: 3.2em; }
+  .ve-cap li::before { content: attr(data-n); font: 600 var(--t-label) var(--font-mono); color: var(--accent); margin-right: var(--s-3); font-variant-numeric: tabular-nums; }
+  .ve-player input { accent-color: var(--accent); min-width: 0; }
+  button { font: 500 var(--t-small) var(--font-mono); color: var(--text); background: var(--surface); border: 1px solid var(--border-bright); border-radius: var(--r-1); padding: var(--s-2) var(--s-3); cursor: pointer; transition: border-color var(--fast) var(--ease); }
+  button:hover, button:focus-visible { border-color: var(--accent); }
+
+  .kpis { display: flex; flex-wrap: wrap; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--r-1); overflow: hidden; }
+  .kpi { flex: 1 1 14rem; background: var(--surface); padding: var(--s-5); display: grid; grid-template-rows: auto auto 1fr; gap: var(--s-3); min-width: 0; }
+  .kpi .val { font: 600 2.75rem/1 var(--font-body); font-variant-numeric: tabular-nums; letter-spacing: -.04em; }
+  .ve-bars { align-self: end; width: 100%; max-width: 17rem; height: auto; font: 500 13px var(--font-mono); overflow: visible; }
+  .ve-bars text { fill: var(--text-dim); dominant-baseline: central; }
+  .ve-bars rect { fill: var(--border-bright); }
+  .ve-bars .hot { fill: var(--accent); }
+  .ve-bars .hot + text { fill: var(--text); }
+
+  .units { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: var(--s-4); }
+  .unit-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-1); padding: var(--s-4); display: grid; gap: var(--s-2); align-content: start; transition: border-color var(--fast) var(--ease); }
+  .unit-card p { color: var(--text-dim); }
+  .unit-card .ve-label { color: var(--accent); }
+
+  .cases { display: grid; grid-template-columns: repeat(auto-fit, minmax(14.5rem, 1fr)); gap: var(--s-4); }
+  .case { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-1); padding: var(--s-4); display: grid; gap: var(--s-3); align-content: start; }
+  .case[data-st=ok] { --st: var(--ok); } .case[data-st=warn] { --st: var(--warn); } .case[data-st=risk] { --st: var(--risk); } .case[data-st=info] { --st: var(--info); }
+  .ve-mini { width: 100%; max-width: 20rem; height: auto; font: 600 15px var(--font-body); }
+  .ve-mini .ve-n .sh { filter: none; }
+  .ve-mini .ve-n .sub { font-size: 13px; }
+  .ve-mini .ve-el { font-size: 13px; }
+  .ve-mini .is-st.ve-e { stroke: var(--st); stroke-width: 2.75; }
+  .ve-mini .is-st .sh { stroke: var(--st); stroke-width: 2; }
+  .ve-mini .is-st .sub, .ve-mini .ve-el.is-st { fill: var(--st); }
+  .ve-mini .is-off { stroke-dasharray: 5 4; }
+  .ve-mini .ve-e.is-off { opacity: .45; }
+
+  .chip { display: inline-flex; align-items: center; gap: var(--s-2); font: 600 var(--t-label) var(--font-mono); padding: 2px var(--s-2); border: 1px solid currentColor; border-radius: var(--r-1); white-space: nowrap; justify-self: start; }
+  .chip::before { content: ''; width: .5rem; height: .5rem; background: currentColor; }
+  .chip.ok { color: var(--ok); } .chip.ok::before { border-radius: 50%; }
+  .chip.warn { color: var(--warn); } .chip.warn::before { clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+  .chip.risk { color: var(--risk); }
+  .chip.info { color: var(--info); } .chip.info::before { transform: rotate(45deg) scale(.8); }
+
+  .callout { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-1); padding: var(--s-4); display: grid; gap: var(--s-3); max-width: 65ch; }
+  .callout ul { padding-left: 1.1em; display: grid; gap: var(--s-2); }
+  .callout li::marker { color: var(--text-dim); }
+
+  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--r-1); }
+  table { border-collapse: collapse; width: 100%; min-width: 34rem; }
+  th { background: var(--surface); font: 500 var(--t-label) var(--font-mono); color: var(--text-dim); text-align: left; padding: var(--s-3) var(--s-4); }
+  td { padding: var(--s-3) var(--s-4); border-top: 1px solid var(--border); }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .remember { max-width: 65ch; display: grid; gap: var(--s-3); padding-left: 1.4em; }
+  .remember li::marker { font: 600 var(--t-small) var(--font-mono); color: var(--accent); }
+  .sources { border-top: 1px solid var(--border); padding-top: var(--s-4); display: grid; gap: var(--s-2); color: var(--text-dim); }
+  .sources ul { padding-left: 1.1em; display: grid; gap: var(--s-1); }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } .ve-tok { display: none; } }
+  .ve-n.code .sh { stroke: var(--accent); stroke-width: 2; }
+  .ve-e.data { stroke: var(--info); stroke-width: 2.5; }
+  .ve-el.data-l { fill: var(--info); }
+  .life { fill: none; stroke: var(--border-bright); stroke-width: 1; stroke-dasharray: 3 4; }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="ve-ah" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M0 0L10 5L0 10z" fill="context-stroke"/></marker>
+    <linearGradient id="ve-node" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--node-top)"/><stop offset="1" style="stop-color:var(--surface)"/></linearGradient>
+  </defs>
+</svg>
+
+<nav class="bar" aria-label="Sections">
+  <ul>
+    <li><a href="#map">Code map</a></li>
+    <li><a href="#arch">Architecture</a></li>
+    <li><a href="#path">Data path</a></li>
+    <li><a href="#bringup">Bring-up</a></li>
+    <li><a href="#files">Where to read</a></li>
+    <li><a href="#remember">Remember</a></li>
+  </ul>
+</nav>
+
+<main>
+  <header id="map">
+    <p class="kicker">Where NVLink code runs</p>
+    <h1>NVLink code runs in four places, and none of them touches the data</h1>
+    <p class="lead">Software <b>sets the links up and watches them</b>. Once a link runs, every flit moves through pure hardware. The code lives on the <span class="ve-ref" data-ref="host" tabindex="0">host CPU</span>, in <span class="ve-ref" data-ref="gsp" tabindex="0">GSP firmware</span>, in the <span class="ve-ref" data-ref="minion" tabindex="0">MINION</span> controller of each link block, and in the <span class="ve-ref" data-ref="soe" tabindex="0">NVSwitch</span>.</p>
+    <p class="meta">Based on NVIDIA’s open-source GPU kernel driver · Hopper-era names</p>
+  </header>
+
+  <figure>
+    <div class="frame">
+      <svg class="ve-svg" viewBox="0 0 960 520" role="img" aria-label="Map of the system. On the host CPU, the user-space Fabric Manager and the kernel driver nvidia.ko, which holds the NVLink core library, the kernel RM and the NVSwitch driver. On the GPU, the SMs, L2 cache and HSHUB carry data down into the IOCTRL link block, which has a transaction layer, a data link layer, a MINION controller and the PHY. The GSP runs GSP-RM firmware, takes RPCs from the host over PCIe, programs the hub and boots the MINION. On the NVSwitch, an SOE runs switch firmware, a MINION trains links and the NPORT routes packets. Code runs in four places, marked 1 to 4. The data path is hardware only.">
+        <rect class="ve-bd" x="14" y="28" width="296" height="448" rx="4"/><text class="ve-bdl" x="26" y="50">HOST CPU</text>
+        <rect class="ve-bd" x="26" y="62" width="272" height="118" rx="4"/><text class="ve-bdl" x="38" y="82">USER SPACE</text>
+        <rect class="ve-bd" x="26" y="196" width="272" height="268" rx="4"/><text class="ve-bdl" x="38" y="216">KERNEL · nvidia.ko</text>
+        <rect class="ve-bd" x="340" y="28" width="380" height="448" rx="4"/><text class="ve-bdl" x="352" y="50">GPU</text>
+        <rect class="ve-bd" x="352" y="306" width="356" height="158" rx="4"/><text class="ve-bdl" x="364" y="326">IOCTRL · LINK BLOCK</text>
+        <rect class="ve-bd" x="740" y="28" width="206" height="448" rx="4"/><text class="ve-bdl" x="752" y="50">NVSWITCH</text>
+
+        <path class="ve-e data" d="M431 116V144"/><path class="ve-e data" d="M431 200V228"/><path class="ve-e data" d="M408 284V336"/>
+        <path class="ve-e data" d="M450 364H460"/><path class="ve-e data" d="M504 392V400"/>
+        <path class="ve-e data" d="M694 426H754"/><text class="ve-el" x="716" y="416">wire</text>
+
+        <path class="ve-e ctl" data-ref="host gsp" d="M284 334H322V130H620V144"/><text class="ve-el" data-ref="host gsp" x="566" y="121">RPC over PCIe</text>
+        <path class="ve-e ctl" data-ref="gsp" d="M560 226V256H508"/><text class="ve-el r" data-ref="gsp" x="566" y="262">programs</text>
+        <path class="ve-e ctl" data-ref="gsp minion" d="M660 226V336"/><text class="ve-el r" data-ref="gsp minion" x="666" y="290">boots</text>
+        <path class="ve-e ctl" data-ref="minion" d="M586 364H548"/>
+        <path class="ve-e ctl" data-ref="host soe" d="M284 410H318V500H730V172H754"/><text class="ve-el" data-ref="host soe" x="530" y="491">PCIe</text>
+
+        <g class="ve-n"><rect class="sh" x="40" y="94" width="244" height="36" rx="4"/><text x="162" y="112">Fabric Manager</text></g>
+        <g class="ve-n"><rect class="sh" x="40" y="138" width="244" height="32" rx="4"/><text x="162" y="154" style="font-size:15px">nvidia-smi nvlink</text></g>
+        <g class="ve-n code" data-ref="host"><rect class="sh" x="40" y="228" width="244" height="60" rx="4"/><text x="162" y="248">NVLink core library</text><text class="sub" x="162" y="270">discover · train</text></g>
+        <g class="ve-n code" data-ref="host"><rect class="sh" x="40" y="304" width="244" height="60" rx="4"/><text x="162" y="324">Kernel RM</text><text class="sub" x="162" y="346">per-GPU NVLink</text></g>
+        <g class="ve-n code" data-ref="host"><rect class="sh" x="40" y="380" width="244" height="60" rx="4"/><text x="162" y="400">NVSwitch driver</text><text class="sub" x="162" y="422">boots switch cores</text></g>
+
+        <g class="ve-n"><rect class="sh" x="356" y="62" width="150" height="54" rx="4"/><text x="431" y="89">SMs</text></g>
+        <g class="ve-n"><rect class="sh" x="356" y="146" width="150" height="54" rx="4"/><text x="431" y="173">L2 cache</text></g>
+        <g class="ve-n"><rect class="sh" x="356" y="230" width="150" height="54" rx="4"/><text x="431" y="248">HSHUB</text><text class="sub" x="431" y="270">hub to links</text></g>
+        <g class="ve-n code" data-ref="gsp"><rect class="sh" x="540" y="146" width="164" height="80" rx="4"/><text x="622" y="168">GSP</text><text class="sub" x="622" y="192">GSP-RM firmware</text><text class="sub" x="622" y="212">RISC-V</text></g>
+        <g class="ve-n"><rect class="sh" x="366" y="338" width="84" height="54" rx="4"/><text x="408" y="356">TL</text><text class="sub" x="408" y="378">NVLTLC</text></g>
+        <g class="ve-n"><rect class="sh" x="462" y="338" width="84" height="54" rx="4"/><text x="504" y="356">DL</text><text class="sub" x="504" y="378">NVLDL</text></g>
+        <g class="ve-n code" data-ref="minion"><rect class="sh" x="586" y="338" width="108" height="54" rx="4"/><text x="640" y="356">MINION</text><text class="sub" x="640" y="378">Falcon</text></g>
+        <g class="ve-n"><rect class="sh" x="366" y="402" width="328" height="48" rx="4"/><text x="530" y="426">PHY · SerDes · lanes</text></g>
+
+        <g class="ve-n code" data-ref="soe"><rect class="sh" x="756" y="140" width="176" height="64" rx="4"/><text x="844" y="162">SOE</text><text class="sub" x="844" y="186">switch firmware</text></g>
+        <g class="ve-n code" data-ref="soe"><rect class="sh" x="756" y="250" width="176" height="56" rx="4"/><text x="844" y="268">MINION</text><text class="sub" x="844" y="290">trains links</text></g>
+        <g class="ve-n"><rect class="sh" x="756" y="398" width="176" height="56" rx="4"/><text x="844" y="416">NPORT</text><text class="sub" x="844" y="438">routes packets</text></g>
+
+        <g class="ve-co" data-ref="host" transform="translate(298 196)"><circle r="11"/><text>1</text></g>
+        <g class="ve-co" data-ref="gsp" transform="translate(704 146)"><circle r="11"/><text>2</text></g>
+        <g class="ve-co" data-ref="minion" transform="translate(694 338)"><circle r="11"/><text>3</text></g>
+        <g class="ve-co" data-ref="soe" transform="translate(932 140)"><circle r="11"/><text>4</text></g>
+      </svg>
+    </div>
+    <figcaption><span class="fig-n">Fig. 1</span>Orange outline: runs NVLink code. Blue line: the data path, all hardware. ① host driver · ② GSP firmware · ③ MINION in each link block · ④ NVSwitch firmware.</figcaption>
+  </figure>
+
+  <section id="arch">
+    <div class="sec-head"><p class="kicker">GPU architecture</p><h2>Start outside in: control on top, compute in the middle, memory and links at the bottom</h2></div>
+    <figure>
+      <div class="frame">
+        <svg class="ve-svg" viewBox="0 0 960 450" role="img" aria-label="Logical map of an H100 GPU. Top row: PCIe interface, front end, copy engines, the GSP and other microcontrollers. Middle: eight GPCs that hold the SMs, a crossbar, and two halves of the L2 cache. Bottom row: memory controllers to HBM on both sides, the HSHUB, and the IOCTRL link blocks that drive NVLink.">
+          <rect class="ve-bd" x="14" y="30" width="932" height="404" rx="4"/><text class="ve-bdl" x="26" y="22">ONE GPU · LOGICAL MAP</text>
+          <text class="ve-bdl" x="26" y="52">CONTROL</text><text class="ve-bdl" x="26" y="140">COMPUTE</text><text class="ve-bdl" x="26" y="372">MEMORY · LINKS</text>
+
+          <g class="ve-n" data-ref="ctl"><rect class="sh" x="40" y="62" width="140" height="56" rx="4"/><text x="110" y="90">PCIe 5</text></g>
+          <g class="ve-n" data-ref="ctl"><rect class="sh" x="196" y="62" width="150" height="56" rx="4"/><text x="271" y="80">Front end</text><text class="sub" x="271" y="102">reads commands</text></g>
+          <g class="ve-n" data-ref="ctl"><rect class="sh" x="362" y="62" width="160" height="56" rx="4"/><text x="442" y="80">Copy engines</text><text class="sub" x="442" y="102">bulk DMA</text></g>
+          <g class="ve-n code" data-ref="gsp"><rect class="sh" x="538" y="62" width="130" height="56" rx="4"/><text x="603" y="80">GSP</text><text class="sub" x="603" y="102">RISC-V</text></g>
+          <g class="ve-n" data-ref="ctl"><rect class="sh" x="684" y="62" width="236" height="56" rx="4"/><text x="802" y="80">Other controllers</text><text class="sub" x="802" y="102">PMU · SEC2 · FSP</text></g>
+
+          <g class="ve-n" data-ref="gpc"><rect class="sh" x="40" y="150" width="100" height="70" rx="4"/><text x="90" y="174">GPC</text><text class="sub" x="90" y="198">18 SM</text></g>
+          <g class="ve-n" data-ref="gpc"><rect class="sh" x="150" y="150" width="100" height="70" rx="4"/><text x="200" y="174">GPC</text><text class="sub" x="200" y="198">18 SM</text></g>
+          <g class="ve-n" data-ref="gpc"><rect class="sh" x="260" y="150" width="100" height="70" rx="4"/><text x="310" y="174">GPC</text><text class="sub" x="310" y="198">18 SM</text></g>
+          <g class="ve-n" data-ref="gpc"><rect class="sh" x="370" y="150" width="100" height="70" rx="4"/><text x="420" y="174">GPC</text><text class="sub" x="420" y="198">18 SM</text></g>
+          <g class="ve-n" data-ref="gpc"><rect class="sh" x="480" y="150" width="100" height="70" rx="4"/><text x="530" y="174">GPC</text><text class="sub" x="530" y="198">18 SM</text></g>
+          <g class="ve-n" data-ref="gpc"><rect class="sh" x="590" y="150" width="100" height="70" rx="4"/><text x="640" y="174">GPC</text><text class="sub" x="640" y="198">18 SM</text></g>
+          <g class="ve-n" data-ref="gpc"><rect class="sh" x="700" y="150" width="100" height="70" rx="4"/><text x="750" y="174">GPC</text><text class="sub" x="750" y="198">18 SM</text></g>
+          <g class="ve-n" data-ref="gpc"><rect class="sh" x="810" y="150" width="110" height="70" rx="4"/><text x="865" y="174">GPC</text><text class="sub" x="865" y="198">18 SM</text></g>
+          <g class="ve-n" data-ref="xbar"><rect class="sh" x="40" y="236" width="880" height="36" rx="4"/><text x="480" y="254">crossbar · connects every GPC to every L2 slice</text></g>
+          <g class="ve-n" data-ref="l2"><rect class="sh" x="40" y="288" width="432" height="56" rx="4"/><text x="256" y="316">L2 cache · half A</text></g>
+          <g class="ve-n" data-ref="l2"><rect class="sh" x="488" y="288" width="432" height="56" rx="4"/><text x="704" y="316">L2 cache · half B</text></g>
+
+          <g class="ve-n" data-ref="mem"><rect class="sh" x="40" y="380" width="200" height="44" rx="4"/><text x="140" y="402">Memory ctrl → HBM</text></g>
+          <g class="ve-n is-key" data-ref="link"><rect class="sh" x="256" y="380" width="150" height="44" rx="4"/><text x="331" y="402">HSHUB</text></g>
+          <g class="ve-n is-key" data-ref="link"><rect class="sh" x="422" y="380" width="282" height="44" rx="4"/><text x="563" y="402">IOCTRL link blocks → NVLink</text></g>
+          <g class="ve-n" data-ref="mem"><rect class="sh" x="720" y="380" width="200" height="44" rx="4"/><text x="820" y="402">Memory ctrl → HBM</text></g>
+        </svg>
+      </div>
+      <figcaption><span class="fig-n">Fig. 2</span>A logical map, not the real floor plan. NVLink hangs off the L2 side of the chip, like memory does: to the SMs, a peer GPU looks like more memory.</figcaption>
+    </figure>
+
+    <div class="units">
+      <div class="unit-card" data-ref="ctl"><span class="ve-label">Control</span><h3>Gets work in</h3><p>PCIe brings commands from the host. The front end reads them. Copy engines move big blocks of data.</p></div>
+      <div class="unit-card" data-ref="gpc"><span class="ve-label">Compute · GPC → SM</span><h3>Does the math</h3><p>8 GPCs × 18 SMs on the full die. H100 SXM5 enables 132 of them.</p></div>
+      <div class="unit-card" data-ref="xbar l2"><span class="ve-label">Crossbar · L2</span><h3>Joins compute to memory</h3><p>Every SM reaches every L2 slice through the crossbar. All memory traffic, local or remote, passes the L2.</p></div>
+      <div class="unit-card" data-ref="link"><span class="ve-label">HSHUB · IOCTRL</span><h3>The NVLink exit</h3><p>HSHUB sends L2 traffic to the right link. Each IOCTRL block holds the link layers and a MINION.</p></div>
+      <div class="unit-card" data-ref="gsp"><span class="ve-label">GSP</span><h3>The firmware brain</h3><p>A RISC-V core that runs GSP-RM, the part of the driver that moved onto the GPU.</p></div>
+      <div class="unit-card" data-ref="mem"><span class="ve-label">Memory controllers</span><h3>Talk to HBM</h3><p>Five HBM3 stacks on H100 SXM5: 80 GB at 3.35 TB/s.</p></div>
+    </div>
+  </section>
+
+  <section id="path">
+    <div class="sec-head"><p class="kicker">Data path</p><h2>A remote load crosses six hardware blocks and runs no code</h2></div>
+    <figure class="ve-steps">
+      <div class="frame">
+        <svg class="ve-svg" viewBox="0 0 960 230" role="img" aria-label="Data path of a remote load: SM, L2, HSHUB, transaction layer, data link layer, PHY, then the wire. Each block is hardware.">
+          <path class="ve-e" data-s="1" pathLength="1" d="M138 110H174"/>
+          <path class="ve-e" data-s="2" pathLength="1" d="M294 110H330"/>
+          <path class="ve-e" data-s="3" pathLength="1" d="M450 110H486"/>
+          <path class="ve-e" data-s="4" pathLength="1" d="M606 110H642"/>
+          <path class="ve-e" data-s="5" pathLength="1" d="M762 110H798"/>
+          <path class="ve-e is-hot" data-s="6" pathLength="1" d="M918 110H954"/>
+          <circle class="ve-tok" data-s="1" r="5" style="offset-path: path('M79 110H174')"/>
+          <circle class="ve-tok" data-s="2" r="5" style="offset-path: path('M235 110H330')"/>
+          <circle class="ve-tok" data-s="3" r="5" style="offset-path: path('M391 110H486')"/>
+          <circle class="ve-tok" data-s="4" r="5" style="offset-path: path('M547 110H642')"/>
+          <circle class="ve-tok" data-s="5" r="5" style="offset-path: path('M703 110H798')"/>
+          <circle class="ve-tok" data-s="6" r="5" style="offset-path: path('M859 110H954')"/>
+          <g class="ve-n" data-s="1"><rect class="sh" x="20" y="70" width="118" height="80" rx="4"/><text x="79" y="98">SM</text><text class="sub" x="79" y="122">ld [addr]</text></g>
+          <g class="ve-n" data-s="2"><rect class="sh" x="176" y="70" width="118" height="80" rx="4"/><text x="235" y="98">L2</text><text class="sub" x="235" y="122">peer address</text></g>
+          <g class="ve-n" data-s="3"><rect class="sh" x="332" y="70" width="118" height="80" rx="4"/><text x="391" y="98">HSHUB</text><text class="sub" x="391" y="122">pick a link</text></g>
+          <g class="ve-n" data-s="4"><rect class="sh" x="488" y="70" width="118" height="80" rx="4"/><text x="547" y="98">TL</text><text class="sub" x="547" y="122">make packet</text></g>
+          <g class="ve-n" data-s="5"><rect class="sh" x="644" y="70" width="118" height="80" rx="4"/><text x="703" y="98">DL</text><text class="sub" x="703" y="122">CRC · seq</text></g>
+          <g class="ve-n" data-s="6"><rect class="sh" x="800" y="70" width="118" height="80" rx="4"/><text x="859" y="98">PHY</text><text class="sub" x="859" y="122">serialize</text></g>
+          <g class="ve-dim is-key"><path class="ext" d="M20 160V190M918 160V190"/><path class="ln" d="M20 184H918M16 188l8-8M914 188l8-8"/><text x="469" y="178">hardware only · no code runs per packet</text></g>
+        </svg>
+      </div>
+      <div class="ve-player">
+        <ol class="ve-cap">
+          <li data-n="1/6">A thread runs a load. The page table already said this address is on a peer GPU.</li>
+          <li data-n="2/6">The L2 sees a remote address, so it does not go to local HBM.</li>
+          <li data-n="3/6">HSHUB picks which link to use. GSP firmware set up this choice at bring-up.</li>
+          <li data-n="4/6">The transaction layer (NVLTLC) turns the request into a packet of flits.</li>
+          <li data-n="5/6">The data link layer (NVLDL) adds the CRC and sequence number and keeps a copy for replay.</li>
+          <li data-n="6/6">The PHY serializes the flits onto the lanes. Firmware never sees this packet.</li>
+        </ol>
+        <button data-go="-1" aria-label="Previous step">←</button>
+        <button data-play>Play</button>
+        <input type="range" min="0" value="0" aria-label="Step">
+        <button data-go="1" aria-label="Next step">→</button>
+      </div>
+      <figcaption><span class="fig-n">Fig. 3</span>Speed comes from keeping software out of this path. Firmware’s job is to configure these blocks and react when they report errors.</figcaption>
+    </figure>
+  </section>
+
+  <section id="bringup">
+    <div class="sec-head"><p class="kicker">Bring-up</p><h2>At boot, the four code owners hand the link from one to the next</h2></div>
+    <figure class="ve-steps">
+      <div class="frame">
+        <svg class="ve-svg" viewBox="0 0 960 470" role="img" aria-label="Sequence of link bring-up across four actors: the driver nvidia.ko on the CPU, GSP-RM on the GPU, the MINION in the link block, and the link hardware. The driver sends an RPC to GSP-RM. GSP-RM boots the MINION. The MINION initializes the PHY and lanes. The lanes come up in SAFE mode. The driver discovers the peer. The driver asks GSP-RM to switch to high speed and program the hub. In high speed, traffic flows in hardware.">
+          <path class="life" d="M120 80V460M360 80V460M600 80V460M840 80V460"/>
+
+          <path class="ve-e" data-s="1" pathLength="1" d="M120 120H358"/><text class="ve-el" data-s="1" x="240" y="111">RPC: start links</text>
+          <path class="ve-e" data-s="2" pathLength="1" d="M360 170H598"/><text class="ve-el" data-s="2" x="480" y="161">load + boot ucode</text>
+          <path class="ve-e" data-s="3" pathLength="1" d="M600 220H838"/><text class="ve-el" data-s="3" x="720" y="211">init PHY · lanes · DL</text>
+          <path class="ve-e" data-s="4" pathLength="1" d="M840 270H602"/><text class="ve-el" data-s="4" x="720" y="261">lanes up → SAFE</text>
+          <path class="ve-e is-async" data-s="5" d="M120 320H838"/><text class="ve-el" data-s="5" x="480" y="311">discover the peer on the far end</text>
+          <path class="ve-e" data-s="6" pathLength="1" d="M120 370H358"/><text class="ve-el" data-s="6" x="240" y="361">RPC: go HS · set hub</text>
+          <path class="ve-e is-hot" data-s="7" pathLength="1" d="M840 410H900V440H846"/><text class="ve-el hot l" data-s="7" x="828" y="430">HS: flits flow, no code</text>
+
+          <circle class="ve-tok" data-s="1" r="5" style="offset-path: path('M120 120H358')"/>
+          <circle class="ve-tok" data-s="2" r="5" style="offset-path: path('M360 170H598')"/>
+          <circle class="ve-tok" data-s="3" r="5" style="offset-path: path('M600 220H838')"/>
+          <circle class="ve-tok" data-s="4" r="5" style="offset-path: path('M840 270H602')"/>
+          <circle class="ve-tok" data-s="5" r="5" style="offset-path: path('M120 320H838'); --dur: 1400ms"/>
+          <circle class="ve-tok" data-s="6" r="5" style="offset-path: path('M120 370H358')"/>
+          <circle class="ve-tok" data-s="7" r="5" style="offset-path: path('M840 410H900V440H846')"/>
+
+          <g class="ve-n code"><rect class="sh" x="20" y="24" width="200" height="56" rx="4"/><text x="120" y="42">nvidia.ko</text><text class="sub" x="120" y="64">host CPU</text></g>
+          <g class="ve-n code"><rect class="sh" x="260" y="24" width="200" height="56" rx="4"/><text x="360" y="42">GSP-RM</text><text class="sub" x="360" y="64">GPU · RISC-V</text></g>
+          <g class="ve-n code"><rect class="sh" x="500" y="24" width="200" height="56" rx="4"/><text x="600" y="42">MINION</text><text class="sub" x="600" y="64">IOCTRL · Falcon</text></g>
+          <g class="ve-n"><rect class="sh" x="740" y="24" width="200" height="56" rx="4"/><text x="840" y="42">Link hardware</text><text class="sub" x="840" y="64">TL · DL · PHY</text></g>
+        </svg>
+      </div>
+      <div class="ve-player">
+        <ol class="ve-cap">
+          <li data-n="1/7">The driver on the CPU asks GSP-RM to start the links, through an RPC over PCIe.</li>
+          <li data-n="2/7">GSP-RM loads the MINION microcode into each link block and starts it.</li>
+          <li data-n="3/7">MINION runs low-level commands: power the PHY, enable the lanes, start the data link.</li>
+          <li data-n="4/7">The lanes come up. The link waits in SAFE, a slow mode used for setup.</li>
+          <li data-n="5/7">The NVLink core library finds out who is on the other end and pairs the two link ends.</li>
+          <li data-n="6/7">The driver asks GSP-RM to move the link to HS (high speed) and to program HSHUB.</li>
+          <li data-n="7/7">In HS, flits flow in hardware. Code only comes back for errors, retraining and power changes.</li>
+        </ol>
+        <button data-go="-1" aria-label="Previous step">←</button>
+        <button data-play>Play</button>
+        <input type="range" min="0" value="0" aria-label="Step">
+        <button data-go="1" aria-label="Next step">→</button>
+      </div>
+      <figcaption><span class="fig-n">Fig. 4</span>Simplified. The order follows the open-source driver. Which steps run on the CPU and which on GSP changes with GPU generation and driver version.</figcaption>
+    </figure>
+  </section>
+
+  <section id="files">
+    <div class="sec-head"><p class="kicker">Where to read</p><h2>Half of the NVLink code is open source; the firmware half is not</h2></div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Code</th><th>Runs on</th><th>Job</th><th>Read it at</th></tr></thead>
+        <tbody>
+          <tr><td><b>① NVLink core library</b></td><td>Host CPU, kernel</td><td>Discovery, training sequence, link states</td><td><code>src/common/nvlink/kernel/nvlink/core/</code></td></tr>
+          <tr><td><b>① Kernel RM NVLink</b></td><td>Host CPU, kernel</td><td>One NVLink object per GPU; sends RPCs to GSP</td><td><code>src/nvidia/src/kernel/gpu/nvlink/</code></td></tr>
+          <tr><td><b>① NVSwitch driver</b></td><td>Host CPU, kernel</td><td>Boots switch MINION and SOE, handles switch errors</td><td><code>src/common/nvswitch/kernel/</code></td></tr>
+          <tr><td><b>② GSP-RM</b></td><td>GSP, RISC-V on the GPU</td><td>Programs HSHUB and link config; runs the GPU side</td><td>Closed firmware (<code>gsp_*.bin</code>)</td></tr>
+          <tr><td><b>③ MINION microcode</b></td><td>Falcon in each IOCTRL</td><td>Low-level PHY and data-link commands</td><td>Closed; register headers in <code>src/common/inc/swref/</code></td></tr>
+          <tr><td><b>④ SOE firmware</b></td><td>Controller in the NVSwitch</td><td>Switch tasks such as thermal and cable management</td><td>Interfaces in <code>src/common/nvswitch/common/inc/soe/</code></td></tr>
+          <tr><td><b>Fabric Manager</b></td><td>Host CPU, user space</td><td>Sets up routing on NVSwitch systems</td><td>NVIDIA package (closed)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="meta">Paths are in <a href="https://github.com/NVIDIA/open-gpu-kernel-modules" target="_blank" rel="noopener">NVIDIA/open-gpu-kernel-modules</a>. Your team’s internal source is the authority for the closed parts.</p>
+  </section>
+
+  <section id="remember">
+    <div class="sec-head"><p class="kicker">Remember</p><h2>Four things to keep in your head</h2></div>
+    <ol class="remember">
+      <li>The GPU has three bands: control on top (PCIe, front end, GSP), compute in the middle (GPCs, SMs, L2), memory and links at the bottom (HBM controllers, HSHUB, IOCTRL).</li>
+      <li>NVLink data never runs through code. TL, DL and PHY are hardware.</li>
+      <li>NVLink code runs in four places: the host driver, GSP-RM, the MINION in each link block, and the NVSwitch firmware.</li>
+      <li>Firmware configures the links at bring-up and reacts to errors afterwards. That is where you will spend your time.</li>
+    </ol>
+  </section>
+
+  <section class="sources" aria-label="Sources">
+    <p class="ve-label">Sources</p>
+    <ul>
+      <li><a href="https://github.com/NVIDIA/open-gpu-kernel-modules" target="_blank" rel="noopener">NVIDIA open-gpu-kernel-modules</a>: <code>kernel_nvlink.c</code> (RPCs into GSP-RM that program HSHUB), <code>kernel_minion_gv100.c</code> and <code>minion_lr10.c</code> (MINION is a Falcon), <code>nvlink.h</code> (OFF, SAFE, HS states).</li>
+      <li><a href="https://www.phoronix.com/news/NVIDIA-Big-GSP-Firmware-Dump" target="_blank" rel="noopener">Phoronix: NVIDIA GSP firmware in linux-firmware</a>: GSP is a RISC-V core; the driver is split into CPU-RM and GSP-RM.</li>
+      <li><a href="https://resources.nvidia.com/en-us-tensor-core" target="_blank" rel="noopener">NVIDIA H100 architecture whitepaper</a>: GPC, SM, L2 and HBM numbers.</li>
+      <li>Related pages: <a href="https://claude.ai/artifact/FV5HpdkZQ8sqh8RksK95mR" target="_blank" rel="noopener">GPU Basics</a> · <a href="https://claude.ai/artifact/Xi5x4zrhVAFWWzYdcBWBzd" target="_blank" rel="noopener">NVLink in depth</a> · <a href="https://claude.ai/artifact/LZwSGiRcSWfaU8FUU94Hgj" target="_blank" rel="noopener">NVLink Link Bench</a>.</li>
+    </ul>
+  </section>
+</main>
+
+<script>
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Linked highlighting: hovering any [data-ref], or focusing a prose term, lights every element that shares a ref.
+  const linked = [...document.querySelectorAll('[data-ref]')], refs = (el) => el.dataset.ref.split(' ');
+  let hovered = null, focused = null;
+  const paint = () => {
+    const keys = (hovered || focused)?.dataset.ref.split(' ') ?? [];
+    for (const t of linked) t.classList.toggle('is-lit', refs(t).some((k) => keys.includes(k)));
+    for (const svg of document.querySelectorAll('svg')) svg.classList.toggle('has-lit', !!svg.querySelector('.is-lit'));
+  };
+  for (const el of linked) {
+    el.addEventListener('pointerenter', () => { hovered = el; paint(); });
+    el.addEventListener('pointerleave', () => { hovered = null; paint(); });
+    el.addEventListener('focus', () => { focused = el; paint(); });
+    el.addEventListener('blur', () => { focused = null; paint(); });
+  }
+
+  // Stepper / scene player: opens on the full picture; Play replays from step 1.
+  for (const root of document.querySelectorAll('.ve-steps')) {
+    const parts = [...root.querySelectorAll('[data-s]')], caps = [...root.querySelectorAll('.ve-cap li')];
+    const range = root.querySelector('input[type=range]'), play = root.querySelector('[data-play]');
+    const n = caps.length; let i = 0, timer = null;
+    if (range) range.max = n - 1;
+    const show = (k) => {
+      i = Math.max(0, Math.min(n - 1, k));
+      root.classList.remove('is-still');
+      for (const el of parts) { const s = el.dataset.s.trim().split(' ').map(Number); el.classList.toggle('on', s[0] <= i + 1); el.classList.toggle('now', s.includes(i + 1)); }
+      caps.forEach((c, j) => c.hidden = j !== i);
+      root.classList.toggle('is-full', i === n - 1);
+      root.dispatchEvent(new Event('ve:step'));
+      if (range) range.value = i;
+    };
+    const stop = () => { clearInterval(timer); timer = null; if (play) play.textContent = 'Play'; };
+    root.addEventListener('click', (e) => { const b = e.target.closest('[data-go]'); if (b) { stop(); show(i + +b.dataset.go); } });
+    range?.addEventListener('input', () => { stop(); show(+range.value); });
+    play?.addEventListener('click', () => {
+      if (timer) return stop();
+      if (i === n - 1) show(0);
+      play.textContent = 'Pause';
+      timer = setInterval(() => (i < n - 1 ? show(i + 1) : stop()), 3500);
+    });
+    show(n - 1);
+    root.classList.add('is-still');
+  }
+
+  // Flow dots on Fig. 1: requests out along the top, data back along the bottom. Only on the full picture and while visible.
+  if (!still) {
+    for (const svg of document.querySelectorAll('svg:has([data-flow])')) {
+      const layer = svg.querySelector('.ve-dots'), steps = svg.closest('.ve-steps');
+      const routes = [...svg.querySelectorAll('[data-flow]')].map((p, k) => ({ p, len: p.getTotalLength(), every: +p.dataset.every, next: k * 450 }));
+      let dots = [], visible = false, running = false, t0 = null;
+      const live = () => visible && (!steps || steps.classList.contains('is-full'));
+      const tick = (t) => {
+        if (!live()) { running = false; for (const d of dots) d.c.remove(); dots = []; return; }
+        if (t0 === null) t0 = t;
+        for (const r of routes) if (t - t0 >= r.next) {
+          r.next = t - t0 + r.every;
+          const c = document.createElementNS(svg.namespaceURI, 'circle');
+          c.setAttribute('r', 4); c.setAttribute('class', r.p.dataset.flow); layer.append(c);
+          dots.push({ c, r, t0: t });
+        }
+        dots = dots.filter((d) => {
+          const s = (t - d.t0) * .3;
+          if (s > d.r.len) { d.c.remove(); return false; }
+          const pt = d.r.p.getPointAtLength(s);
+          d.c.setAttribute('cx', pt.x); d.c.setAttribute('cy', pt.y);
+          return true;
+        });
+        requestAnimationFrame(tick);
+      };
+      const start = () => { if (!running && live()) { running = true; requestAnimationFrame(tick); } };
+      steps?.addEventListener('ve:step', start);
+      new IntersectionObserver((entries) => { visible = entries[entries.length - 1].isIntersecting; start(); }).observe(svg);
+    }
+  }
+
+  // Section bar: mark the section in view.
+  const navLinks = [...document.querySelectorAll('nav.bar a')];
+  const sectionObserver = new IntersectionObserver((entries) => {
+    for (const e of entries) if (e.isIntersecting) for (const a of navLinks) a.classList.toggle('is-on', a.getAttribute('href') === '#' + e.target.id);
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  for (const a of navLinks) { const s = document.querySelector(a.getAttribute('href')); if (s) sectionObserver.observe(s); }
+</script>
