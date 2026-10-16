@@ -1,0 +1,662 @@
+<title>NVLink from SM to Switch</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Layout: Blueprint register. One flush-left column of 64rem; figures full width on a line-grid stage; sticky section bar. */
+  :root {
+    color-scheme: dark;
+    --bg: #0d1520; --surface: #132031; --border: #22324a; --border-bright: #596b87;
+    --text: #e3ecf5; --text-dim: #92a6bb; --accent: #ffb547; --accent-dim: rgba(255,181,71,.15);
+    --ok: #6fd3a0; --warn: #e8d36a; --risk: #ff7b6b; --info: #7cc0f0;
+    --node-top: color-mix(in srgb, var(--text) 7%, var(--surface)); --lift: rgb(0 0 0 / .45); --halo: 32%;
+    --font-body: 'IBM Plex Sans', 'Segoe UI', Helvetica, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+    --t-label: .75rem; --t-small: .875rem; --t-body: 1rem; --t-lead: 1.25rem; --t-h2: 1.625rem; --t-h1: clamp(2.25rem, 5.5vw, 4rem);
+    --s-1: .25rem; --s-2: .5rem; --s-3: .75rem; --s-4: 1rem; --s-5: 1.5rem; --s-6: 2rem; --s-7: 3rem; --s-8: 4.5rem;
+    --r-1: 4px; --r-2: 10px;
+    --ease: cubic-bezier(.16,1,.3,1); --fast: 150ms; --med: 300ms; --slow: 500ms;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f2f6fa; --surface: #ffffff; --border: #d6e0ea; --border-bright: #818f9e;
+      --text: #0f1a26; --text-dim: #4d6074; --accent: #a34700; --accent-dim: rgba(163,71,0,.12);
+      --ok: #1c7443; --warn: #776300; --risk: #b0341e; --info: #145f99;
+      --node-top: var(--surface); --lift: rgb(15 26 38 / .12); --halo: 22%;
+      color-scheme: light;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f2f6fa; --surface: #ffffff; --border: #d6e0ea; --border-bright: #818f9e;
+    --text: #0f1a26; --text-dim: #4d6074; --accent: #a34700; --accent-dim: rgba(163,71,0,.12);
+    --ok: #1c7443; --warn: #776300; --risk: #b0341e; --info: #145f99;
+    --node-top: var(--surface); --lift: rgb(15 26 38 / .12); --halo: 22%;
+    color-scheme: light;
+  }
+
+  html { font-size: 17px; }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 400 var(--t-body)/1.6 var(--font-body); text-wrap: pretty; font-kerning: normal; font-synthesis: none; -webkit-font-smoothing: antialiased; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+  ::selection { background: var(--accent-dim); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  a { color: var(--text); text-decoration: underline; text-decoration-color: var(--border-bright); text-underline-offset: .2em; }
+  a:hover { text-decoration-color: var(--accent); }
+
+  nav.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: color-mix(in srgb, var(--bg) 94%, transparent); border-bottom: 1px solid var(--border); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  nav.bar ul { max-width: 64rem; margin: 0 auto; list-style: none; padding: 0; display: flex; gap: var(--s-5); overflow-x: auto; scrollbar-width: none; mask-image: linear-gradient(90deg, #000 90%, transparent); }
+  nav.bar ul::-webkit-scrollbar { display: none; }
+  nav.bar a { display: block; padding: var(--s-3) 0; font: 500 var(--t-label) var(--font-mono); color: var(--text-dim); text-decoration: none; white-space: nowrap; border-bottom: 2px solid transparent; }
+  nav.bar a.is-on { color: var(--text); border-bottom-color: var(--accent); }
+
+  main { max-width: 64rem; margin: 0 auto; padding-block: var(--s-7) var(--s-8); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-8); }
+  section, figure, header { min-width: 0; }
+  section { display: grid; gap: var(--s-6); scroll-margin-top: 3.5rem; }
+  header { display: grid; gap: var(--s-4); }
+  header + figure { margin-top: calc(var(--s-6) - var(--s-8)); }
+  h1, h2, .kpi .val { text-box: trim-both cap alphabetic; }
+  h1 { font-size: var(--t-h1); line-height: 1.05; font-weight: 600; letter-spacing: -.035em; text-wrap: balance; max-width: 18ch; margin-bottom: var(--s-2); }
+  h2 { font-size: var(--t-h2); line-height: 1.2; font-weight: 600; letter-spacing: -.015em; text-wrap: balance; max-width: 34ch; }
+  h3 { font-size: var(--t-body); line-height: 1.3; font-weight: 600; }
+  .kicker { display: flex; align-items: center; gap: var(--s-2); font: 600 var(--t-label) var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+  .kicker::before { content: ''; width: 1.25rem; height: 2px; background: currentColor; }
+  .sec-head { display: grid; gap: var(--s-3); }
+  .ve-label { font: 500 var(--t-label) var(--font-mono); color: var(--text-dim); }
+  .lead { font-size: var(--t-lead); line-height: 1.5; color: var(--text-dim); max-width: 46ch; }
+  .lead b { color: var(--text); font-weight: 600; }
+  .meta { font: 500 var(--t-label) var(--font-mono); color: var(--text-dim); }
+  .prose { max-width: 65ch; display: grid; gap: var(--s-3); }
+  .prose p { color: var(--text); }
+  code { font: .875em var(--font-mono); font-variant-ligatures: none; }
+  .unit { font-size: .5em; font-weight: 500; color: var(--text-dim); letter-spacing: 0; }
+
+  /* stage: blueprint 24px line grid */
+  .frame { background: linear-gradient(color-mix(in srgb, var(--border) 55%, transparent) 1px, transparent 1px) 0 0 / 24px 24px, linear-gradient(90deg, color-mix(in srgb, var(--border) 55%, transparent) 1px, transparent 1px) 0 0 / 24px 24px, var(--bg); border: 1px solid var(--border); border-radius: var(--r-1); padding: var(--s-5); overflow-x: auto; }
+  figcaption { font-size: var(--t-body); color: var(--text-dim); margin-top: var(--s-3); max-width: 65ch; }
+  .fig-n { font: 600 var(--t-label) var(--font-mono); color: var(--text); margin-right: var(--s-2); }
+
+  .ve-svg { width: 100%; min-width: 720px; height: auto; display: block; font: 500 17px var(--font-body); }
+  .ve-n .sh { fill: url(#ve-node); stroke: var(--border-bright); stroke-width: 1.5; filter: drop-shadow(0 6px 14px var(--lift)); transition: stroke var(--fast) var(--ease), opacity var(--med) var(--ease); }
+  .ve-n .lid { fill: var(--node-top); }
+  .ve-n.is-key .sh { fill: color-mix(in srgb, var(--accent) 11%, var(--surface)); stroke: var(--accent); stroke-width: 2; filter: drop-shadow(0 0 16px color-mix(in srgb, var(--accent) var(--halo), transparent)); }
+  .ve-n text { fill: var(--text); text-anchor: middle; dominant-baseline: central; font-weight: 600; }
+  .ve-n .sub { fill: var(--text-dim); font: 500 14px var(--font-mono); }
+  .ve-n .gl { fill: none; stroke: var(--text-dim); stroke-width: 1.5; stroke-linejoin: round; }
+  .ve-n.is-key .gl { stroke: var(--accent); }
+  .ve-n .tick { fill: none; stroke: var(--border-bright); stroke-width: 1; }
+  .ve-e { fill: none; stroke: var(--text-dim); stroke-width: 1.75; marker-end: url(#ve-ah); }
+  .ve-e.no-ah { marker-end: none; }
+  .ve-e.is-hot { stroke: var(--accent); stroke-width: 2.75; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 55%, transparent)); }
+  .ve-e.is-async { stroke-dasharray: 6 5; }
+  .ve-el { fill: var(--text-dim); font: 500 14px var(--font-mono); text-anchor: middle; paint-order: stroke; stroke: var(--bg); stroke-width: 5px; stroke-linejoin: round; }
+  .ve-el.l { text-anchor: end; } .ve-el.r { text-anchor: start; }
+  .ve-el.hot { fill: var(--accent); }
+  .ve-bd { fill: none; stroke: var(--border-bright); stroke-width: 1; stroke-dasharray: 4 4; }
+  .ve-bdl { fill: var(--text-dim); font: 600 14px var(--font-mono); letter-spacing: .06em; }
+  .ve-dim path { fill: none; stroke-width: 1; } .ve-dim .ext { stroke: var(--border-bright); } .ve-dim .ln { stroke: var(--text-dim); }
+  .ve-dim text { fill: var(--text); font: 500 14px var(--font-mono); text-anchor: middle; paint-order: stroke; stroke: var(--bg); stroke-width: 5px; }
+  .ve-dim.is-key .ln { stroke: var(--accent); } .ve-dim.is-key text { fill: var(--accent); }
+  .ann { fill: none; stroke: var(--text-dim); stroke-width: 1; }
+  .ve-co circle { fill: var(--surface); stroke: var(--accent); stroke-width: 1.75; }
+  .ve-co text { fill: var(--accent); font: 600 14px var(--font-mono); text-anchor: middle; dominant-baseline: central; }
+  .field rect { stroke: var(--border-bright); stroke-width: 1.5; }
+  .field text { fill: var(--text); font: 500 14px var(--font-mono); text-anchor: middle; dominant-baseline: central; }
+  .field .sub { fill: var(--text-dim); font-size: 13px; }
+  .f-crc rect { fill: color-mix(in srgb, var(--accent) 16%, var(--surface)); stroke: var(--accent); }
+  .f-dl rect { fill: color-mix(in srgb, var(--info) 14%, var(--surface)); }
+  .f-tx rect { fill: var(--surface); }
+  .f-opt rect { fill: var(--surface); stroke-dasharray: 4 3; }
+  .f-data rect { fill: var(--node-top); }
+
+  [data-flow] { fill: none; stroke: none; }
+  .ve-dots circle { fill: var(--text); }
+  .ve-dots .req { fill: var(--accent); filter: drop-shadow(0 0 4px var(--accent)); }
+  .ve-steps:not(.is-full) .ve-dots { display: none; }
+
+  .ve-ref { text-decoration: underline dotted var(--text-dim) 1px; text-underline-offset: .22em; border-radius: var(--r-1); transition: background var(--fast) var(--ease); cursor: default; }
+  .ve-ref.is-lit { background: var(--accent-dim); text-decoration-color: var(--accent); }
+  svg [data-ref] { transition: opacity var(--med) var(--ease); }
+  svg.has-lit path[data-ref]:not(.is-lit), svg.has-lit g[data-ref]:not(.is-lit) .sh { opacity: .25; }
+  svg.has-lit g[data-ref]:not(.is-lit) text, svg.has-lit text[data-ref]:not(.is-lit) { fill: var(--text-dim); }
+  .ve-n.is-lit .sh { stroke: var(--accent); }
+  .ve-e.is-lit { stroke: var(--accent); }
+  .ve-el.is-lit { fill: var(--text); }
+  .unit-card.is-lit { border-color: var(--accent); }
+
+  .ve-steps [data-s] { transition: opacity var(--slow) var(--ease), stroke-dashoffset var(--slow) var(--ease); }
+  .ve-steps [data-s]:not(.on) { opacity: .15; }
+  .ve-steps g[data-s]:not(.on) text, .ve-steps text[data-s]:not(.on) { opacity: 0; }
+  .ve-steps path[pathLength][data-s] { stroke-dasharray: 1; stroke-dashoffset: 1; }
+  .ve-steps path[pathLength][data-s].on { stroke-dashoffset: 0; }
+  .ve-steps .ve-n.now > .sh { stroke: var(--accent); }
+  .ve-steps:not(.is-full) .ve-e.now { stroke: var(--accent); stroke-width: 2.75; }
+  .ve-tok { fill: var(--accent); visibility: hidden; }
+  .ve-steps:not(.is-still) .ve-tok.now { visibility: visible; animation: ve-run var(--dur, 900ms) ease-in-out var(--d, 0ms) both; }
+  @keyframes ve-run { from { offset-distance: 0%; opacity: 0; } 10%, 75% { opacity: 1; } to { offset-distance: 100%; opacity: 0; } }
+  .ve-player { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; gap: var(--s-2) var(--s-3); margin-top: var(--s-4); }
+  .ve-cap { grid-column: 1 / -1; list-style: none; padding: 0; min-height: 3.2em; }
+  .ve-cap li::before { content: attr(data-n); font: 600 var(--t-label) var(--font-mono); color: var(--accent); margin-right: var(--s-3); font-variant-numeric: tabular-nums; }
+  .ve-player input { accent-color: var(--accent); min-width: 0; }
+  button { font: 500 var(--t-small) var(--font-mono); color: var(--text); background: var(--surface); border: 1px solid var(--border-bright); border-radius: var(--r-1); padding: var(--s-2) var(--s-3); cursor: pointer; transition: border-color var(--fast) var(--ease); }
+  button:hover, button:focus-visible { border-color: var(--accent); }
+
+  .kpis { display: flex; flex-wrap: wrap; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--r-1); overflow: hidden; }
+  .kpi { flex: 1 1 14rem; background: var(--surface); padding: var(--s-5); display: grid; grid-template-rows: auto auto 1fr; gap: var(--s-3); min-width: 0; }
+  .kpi .val { font: 600 2.75rem/1 var(--font-body); font-variant-numeric: tabular-nums; letter-spacing: -.04em; }
+  .ve-bars { align-self: end; width: 100%; max-width: 17rem; height: auto; font: 500 13px var(--font-mono); overflow: visible; }
+  .ve-bars text { fill: var(--text-dim); dominant-baseline: central; }
+  .ve-bars rect { fill: var(--border-bright); }
+  .ve-bars .hot { fill: var(--accent); }
+  .ve-bars .hot + text { fill: var(--text); }
+
+  .units { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: var(--s-4); }
+  .unit-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-1); padding: var(--s-4); display: grid; gap: var(--s-2); align-content: start; transition: border-color var(--fast) var(--ease); }
+  .unit-card p { color: var(--text-dim); }
+  .unit-card .ve-label { color: var(--accent); }
+
+  .cases { display: grid; grid-template-columns: repeat(auto-fit, minmax(14.5rem, 1fr)); gap: var(--s-4); }
+  .case { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-1); padding: var(--s-4); display: grid; gap: var(--s-3); align-content: start; }
+  .case[data-st=ok] { --st: var(--ok); } .case[data-st=warn] { --st: var(--warn); } .case[data-st=risk] { --st: var(--risk); } .case[data-st=info] { --st: var(--info); }
+  .ve-mini { width: 100%; max-width: 20rem; height: auto; font: 600 15px var(--font-body); }
+  .ve-mini .ve-n .sh { filter: none; }
+  .ve-mini .ve-n .sub { font-size: 13px; }
+  .ve-mini .ve-el { font-size: 13px; }
+  .ve-mini .is-st.ve-e { stroke: var(--st); stroke-width: 2.75; }
+  .ve-mini .is-st .sh { stroke: var(--st); stroke-width: 2; }
+  .ve-mini .is-st .sub, .ve-mini .ve-el.is-st { fill: var(--st); }
+  .ve-mini .is-off { stroke-dasharray: 5 4; }
+  .ve-mini .ve-e.is-off { opacity: .45; }
+
+  .chip { display: inline-flex; align-items: center; gap: var(--s-2); font: 600 var(--t-label) var(--font-mono); padding: 2px var(--s-2); border: 1px solid currentColor; border-radius: var(--r-1); white-space: nowrap; justify-self: start; }
+  .chip::before { content: ''; width: .5rem; height: .5rem; background: currentColor; }
+  .chip.ok { color: var(--ok); } .chip.ok::before { border-radius: 50%; }
+  .chip.warn { color: var(--warn); } .chip.warn::before { clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+  .chip.risk { color: var(--risk); }
+  .chip.info { color: var(--info); } .chip.info::before { transform: rotate(45deg) scale(.8); }
+
+  .callout { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-1); padding: var(--s-4); display: grid; gap: var(--s-3); max-width: 65ch; }
+  .callout ul { padding-left: 1.1em; display: grid; gap: var(--s-2); }
+  .callout li::marker { color: var(--text-dim); }
+
+  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--r-1); }
+  table { border-collapse: collapse; width: 100%; min-width: 34rem; }
+  th { background: var(--surface); font: 500 var(--t-label) var(--font-mono); color: var(--text-dim); text-align: left; padding: var(--s-3) var(--s-4); }
+  td { padding: var(--s-3) var(--s-4); border-top: 1px solid var(--border); }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .remember { max-width: 65ch; display: grid; gap: var(--s-3); padding-left: 1.4em; }
+  .remember li::marker { font: 600 var(--t-small) var(--font-mono); color: var(--accent); }
+  .sources { border-top: 1px solid var(--border); padding-top: var(--s-4); display: grid; gap: var(--s-2); color: var(--text-dim); }
+  .sources ul { padding-left: 1.1em; display: grid; gap: var(--s-1); }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } .ve-tok { display: none; } }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="ve-ah" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M0 0L10 5L0 10z" fill="context-stroke"/></marker>
+    <linearGradient id="ve-node" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--node-top)"/><stop offset="1" style="stop-color:var(--surface)"/></linearGradient>
+  </defs>
+</svg>
+
+<nav class="bar" aria-label="Sections">
+  <ul>
+    <li><a href="#load">Remote load</a></li>
+    <li><a href="#gpu">GPU units</a></li>
+    <li><a href="#protocol">Protocol</a></li>
+    <li><a href="#states">Link states</a></li>
+    <li><a href="#switch">NVSwitch</a></li>
+    <li><a href="#remember">Remember</a></li>
+  </ul>
+</nav>
+
+<main>
+  <header id="load">
+    <p class="kicker">NVLink for GPU firmware</p>
+    <h1>One GPU reads another GPU’s memory with a plain load</h1>
+    <p class="lead">NVLink carries <b>ordinary memory reads and writes</b> between GPUs. The <span class="ve-ref" data-ref="mmu" tabindex="0">MMU</span> sends the address out a link, and the <span class="ve-ref" data-ref="sw" tabindex="0">NVSwitch</span> routes it to the GPU that owns it.</p>
+    <p class="meta">Numbers are for H100 SXM5 (NVLink 4) unless a figure says otherwise</p>
+  </header>
+
+  <figure class="ve-steps">
+    <div class="frame">
+      <svg class="ve-svg" viewBox="0 0 960 300" role="img" aria-label="A streaming multiprocessor on GPU 0 issues a load. The MMU maps the address to GPU 1. The request goes out an NVLink port to the NVSwitch, which routes it to GPU 1's port. GPU 1 reads its L2 cache or HBM, and the data returns along the same path.">
+        <rect class="ve-bd" x="14" y="40" width="368" height="240" rx="4"/><text class="ve-bdl" x="26" y="62">GPU 0</text>
+        <rect class="ve-bd" x="578" y="40" width="368" height="240" rx="4"/><text class="ve-bdl" x="590" y="62">GPU 1</text>
+
+        <path class="ve-e" data-s="1" data-ref="sm" pathLength="1" d="M130 125H168"/>
+        <text class="ve-el" data-s="1" data-ref="sm" x="149" y="105">ld</text>
+        <path class="ve-e" data-s="2" data-ref="mmu" pathLength="1" d="M270 125H308"/>
+        <text class="ve-el" data-s="2" data-ref="mmu" x="289" y="105">peer</text>
+        <path class="ve-e is-hot" data-s="3" data-ref="link" pathLength="1" d="M366 125H428"/>
+        <text class="ve-el hot" data-s="3" data-ref="link" x="397" y="105">req</text>
+        <path class="ve-e is-hot" data-s="4" data-ref="sw" pathLength="1" d="M532 125H592"/>
+        <text class="ve-el hot" data-s="4" data-ref="sw" x="562" y="105">route</text>
+        <path class="ve-e" data-s="5" data-ref="remote" pathLength="1" d="M650 125H688"/>
+        <text class="ve-el" data-s="5" data-ref="remote" x="669" y="105">read</text>
+        <path class="ve-e" data-s="5" data-ref="remote" pathLength="1" d="M790 125H828"/>
+        <text class="ve-el" data-s="5" data-ref="remote" x="809" y="105">miss</text>
+
+        <path class="ve-e" data-s="6" data-ref="resp" pathLength="1" d="M828 175H790"/>
+        <path class="ve-e" data-s="6" data-ref="resp" pathLength="1" d="M688 175H650"/>
+        <path class="ve-e" data-s="6" data-ref="resp" pathLength="1" d="M592 175H532"/>
+        <text class="ve-el" data-s="6" data-ref="resp" x="562" y="198">data</text>
+        <path class="ve-e" data-s="6" data-ref="resp" pathLength="1" d="M428 175H366"/>
+        <text class="ve-el" data-s="6" data-ref="resp" x="397" y="198">data</text>
+        <path class="ve-e" data-s="6" data-ref="resp" pathLength="1" d="M308 175H290V240H80V162"/>
+        <text class="ve-el" data-s="6" data-ref="resp" x="185" y="230">load completes</text>
+
+        <circle class="ve-tok" data-s="1" r="5" style="offset-path: path('M130 125H168')"/>
+        <circle class="ve-tok" data-s="2" r="5" style="offset-path: path('M270 125H308')"/>
+        <circle class="ve-tok" data-s="3" r="5" style="offset-path: path('M366 125H428')"/>
+        <circle class="ve-tok" data-s="4" r="5" style="offset-path: path('M532 125H592')"/>
+        <circle class="ve-tok" data-s="5" r="5" style="offset-path: path('M650 125H880V140')"/>
+        <circle class="ve-tok" data-s="6" r="5" style="offset-path: path('M880 175H290V240H80V162'); --dur: 2400ms"/>
+
+        <path data-flow="req" data-every="900" d="M80 125H880"/>
+        <path data-flow="resp" data-every="900" d="M880 175H290V240H80V125"/>
+        <g class="ve-dots" aria-hidden="true"></g>
+
+        <g class="ve-n" data-s="1" data-ref="sm" transform="translate(30 90)"><rect class="sh" width="100" height="72" rx="4"/><text x="50" y="28">SM</text><text class="sub" x="50" y="50">1 of 132</text></g>
+        <g class="ve-n" data-s="2" data-ref="mmu" transform="translate(170 90)"><rect class="sh" width="100" height="72" rx="4"/><text x="50" y="28">MMU</text><text class="sub" x="50" y="50">page table</text></g>
+        <g class="ve-n" data-s="3" data-ref="link" transform="translate(310 80)"><rect class="sh" width="56" height="112" rx="4"/><text x="28" y="44">Port</text><text class="sub" x="28" y="68">×18</text></g>
+        <g class="ve-n is-key" data-s="4" data-ref="sw" transform="translate(430 80)"><rect class="sh" width="102" height="112" rx="4"/><text x="51" y="44">NVSwitch</text><text class="sub" x="51" y="68">64 ports</text></g>
+        <g class="ve-n" data-s="5" data-ref="remote" transform="translate(594 80)"><rect class="sh" width="56" height="112" rx="4"/><text x="28" y="44">Port</text><text class="sub" x="28" y="68">×18</text></g>
+        <g class="ve-n" data-s="5" data-ref="remote" transform="translate(690 90)"><rect class="sh" width="100" height="72" rx="4"/><text x="50" y="28">L2</text><text class="sub" x="50" y="50">50 MB</text></g>
+        <g class="ve-n" data-s="5" data-ref="remote" transform="translate(830 82)"><path class="sh" d="M0 10V78A50 10 0 0 0 100 78V10"/><ellipse class="sh lid" cx="50" cy="10" rx="50" ry="10"/><text x="50" y="40">HBM3</text><text class="sub" x="50" y="62">80 GB</text></g>
+      </svg>
+    </div>
+    <div class="ve-player">
+      <ol class="ve-cap">
+        <li data-n="1/6">A thread on an SM of GPU 0 runs an ordinary load instruction on a virtual address.</li>
+        <li data-n="2/6">The MMU walks the page table. The entry points to a peer GPU, not to local HBM.</li>
+        <li data-n="3/6">The request becomes a packet of flits and leaves through one of 18 NVLink ports.</li>
+        <li data-n="4/6">The NVSwitch reads the destination and forwards the packet to GPU 1’s port.</li>
+        <li data-n="5/6">GPU 1 serves the read from its L2 cache, or from HBM on a miss.</li>
+        <li data-n="6/6">Data flits return the same way. The load completes like a slow local load.</li>
+      </ol>
+      <button data-go="-1" aria-label="Previous step">←</button>
+      <button data-play>Play</button>
+      <input type="range" min="0" value="0" aria-label="Step">
+      <button data-go="1" aria-label="Next step">→</button>
+    </div>
+    <figcaption><span class="fig-n">Fig. 1</span>A remote load needs no copy and no driver call: the page table decides where the bytes live. To see one link up close, open the <a href="https://claude.ai/artifact/LZwSGiRcSWfaU8FUU94Hgj" target="_blank" rel="noopener">NVLink Link Bench</a>.</figcaption>
+  </figure>
+
+  <section id="gpu">
+    <div class="sec-head"><p class="ve-label">GPU units</p><h2>A GPU is many SMs around one shared L2, with I/O on the edges</h2></div>
+    <figure>
+      <div class="frame">
+        <svg class="ve-svg" viewBox="0 0 960 470" role="img" aria-label="Floor plan of a GH100 die. Eight GPCs sit in two rows of four. Between them run the two halves of the L2 cache and a control block with the front end, copy engines and GSP. Three HBM stacks sit on each side; one is unused on H100 SXM5. Along the bottom edge are 18 NVLink ports and a PCIe Gen5 x16 interface.">
+          <rect class="ve-bd" x="196" y="30" width="568" height="370" rx="4"/><text class="ve-bdl" x="208" y="22">GH100 DIE</text>
+
+          <path class="ve-e no-ah" data-ref="hbm" d="M172 215H200"/><path class="ve-e no-ah" data-ref="hbm" d="M760 215H788"/>
+          <path class="ve-e no-ah" data-ref="link" d="M410 400V416"/><path class="ve-e no-ah" data-ref="pcie" d="M682 400V416"/>
+
+          <g class="ve-n" data-ref="gpc"><rect class="sh" x="214" y="48" width="122" height="120" rx="4"/><text x="275" y="92">GPC</text><text class="sub" x="275" y="116">9 TPC</text><text class="sub" x="275" y="136">18 SM</text></g>
+          <g class="ve-n" data-ref="gpc"><rect class="sh" x="350" y="48" width="122" height="120" rx="4"/><text x="411" y="92">GPC</text><text class="sub" x="411" y="116">9 TPC</text><text class="sub" x="411" y="136">18 SM</text></g>
+          <g class="ve-n" data-ref="gpc"><rect class="sh" x="486" y="48" width="122" height="120" rx="4"/><text x="547" y="92">GPC</text><text class="sub" x="547" y="116">9 TPC</text><text class="sub" x="547" y="136">18 SM</text></g>
+          <g class="ve-n" data-ref="gpc"><rect class="sh" x="622" y="48" width="122" height="120" rx="4"/><text x="683" y="92">GPC</text><text class="sub" x="683" y="116">9 TPC</text><text class="sub" x="683" y="136">18 SM</text></g>
+
+          <g class="ve-n" data-ref="l2"><rect class="sh" x="214" y="184" width="190" height="62" rx="4"/><text x="309" y="205">L2 cache</text><text class="sub" x="309" y="227">half A</text></g>
+          <g class="ve-n is-key" data-ref="ctl"><rect class="sh" x="418" y="184" width="124" height="62" rx="4"/><text x="480" y="205">Control</text><text class="sub" x="480" y="227">FE·CE·GSP</text></g>
+          <g class="ve-n" data-ref="l2"><rect class="sh" x="556" y="184" width="188" height="62" rx="4"/><text x="650" y="205">L2 cache</text><text class="sub" x="650" y="227">half B</text></g>
+
+          <g class="ve-n" data-ref="gpc"><rect class="sh" x="214" y="262" width="122" height="120" rx="4"/><text x="275" y="306">GPC</text><text class="sub" x="275" y="330">9 TPC</text><text class="sub" x="275" y="350">18 SM</text></g>
+          <g class="ve-n" data-ref="gpc"><rect class="sh" x="350" y="262" width="122" height="120" rx="4"/><text x="411" y="306">GPC</text><text class="sub" x="411" y="330">9 TPC</text><text class="sub" x="411" y="350">18 SM</text></g>
+          <g class="ve-n" data-ref="gpc"><rect class="sh" x="486" y="262" width="122" height="120" rx="4"/><text x="547" y="306">GPC</text><text class="sub" x="547" y="330">9 TPC</text><text class="sub" x="547" y="350">18 SM</text></g>
+          <g class="ve-n" data-ref="gpc"><rect class="sh" x="622" y="262" width="122" height="120" rx="4"/><text x="683" y="306">GPC</text><text class="sub" x="683" y="330">9 TPC</text><text class="sub" x="683" y="350">18 SM</text></g>
+
+          <g class="ve-n" data-ref="hbm"><rect class="sh" x="40" y="48" width="132" height="98" rx="4"/><text x="106" y="86">HBM3</text><text class="sub" x="106" y="110">16 GB</text></g>
+          <g class="ve-n" data-ref="hbm"><rect class="sh" x="40" y="166" width="132" height="98" rx="4"/><text x="106" y="204">HBM3</text><text class="sub" x="106" y="228">16 GB</text></g>
+          <g class="ve-n" data-ref="hbm"><rect class="sh" x="40" y="284" width="132" height="98" rx="4"/><text x="106" y="322">HBM3</text><text class="sub" x="106" y="346">16 GB</text></g>
+          <g class="ve-n" data-ref="hbm"><rect class="sh" x="788" y="48" width="132" height="98" rx="4"/><text x="854" y="86">HBM3</text><text class="sub" x="854" y="110">16 GB</text></g>
+          <g class="ve-n" data-ref="hbm"><rect class="sh" x="788" y="166" width="132" height="98" rx="4"/><text x="854" y="204">HBM3</text><text class="sub" x="854" y="228">16 GB</text></g>
+          <g class="ve-n" data-ref="hbm"><rect class="sh" x="788" y="284" width="132" height="98" rx="4" style="stroke-dasharray:5 4"/><text x="854" y="322">HBM3</text><text class="sub" x="854" y="346">unused</text></g>
+
+          <g class="ve-n" data-ref="link"><rect class="sh" x="214" y="416" width="392" height="44" rx="4"/><text x="410" y="438">NVLink 4 · 18 ports</text></g>
+          <g class="ve-n" data-ref="pcie"><rect class="sh" x="622" y="416" width="122" height="44" rx="4"/><text x="683" y="438">PCIe 5 ×16</text></g>
+        </svg>
+      </div>
+      <figcaption><span class="fig-n">Fig. 2</span>The full GH100 die has 8 GPCs and 144 SMs. H100 SXM5 enables 132 SMs and 5 of the 6 HBM stacks. Hover a card below to find its block.</figcaption>
+    </figure>
+
+    <div class="units">
+      <div class="unit-card" data-ref="gpc"><span class="ve-label">GPC · TPC · SM</span><h3>Where kernels run</h3><p>A GPC holds 9 TPCs. A TPC holds 2 SMs. The SM is the core: it runs warps of 32 threads.</p></div>
+      <div class="unit-card" data-ref="l2"><span class="ve-label">L2 cache</span><h3>The meeting point</h3><p>All SMs, copy engines and NVLink traffic meet here. Remote reads from other GPUs are served from it.</p></div>
+      <div class="unit-card" data-ref="hbm"><span class="ve-label">Memory controllers · HBM3</span><h3>Local memory</h3><p>Stacked DRAM next to the die, behind the L2. 80 GB at 3.35 TB/s on H100 SXM5.</p></div>
+      <div class="unit-card" data-ref="ctl"><span class="ve-label">Front end · copy engines</span><h3>Takes work from the host</h3><p>The front end reads command buffers (pushbuffers). Copy engines move bulk data, also over NVLink.</p></div>
+      <div class="unit-card" data-ref="ctl"><span class="ve-label">GSP and microcontrollers</span><h3>Where firmware runs</h3><p>The GSP is a RISC-V core that runs GPU management firmware. Other small cores handle power and security.</p></div>
+      <div class="unit-card" data-ref="link pcie"><span class="ve-label">NVLink · PCIe</span><h3>The two ways out</h3><p>NVLink goes to other GPUs or switches. PCIe goes to the host CPU, NICs and storage.</p></div>
+    </div>
+
+    <figure>
+      <div class="frame">
+        <svg class="ve-svg" viewBox="0 0 960 300" role="img" aria-label="One SM. It has four partitions. Each partition has a warp scheduler, a 64 KB register file, 32 FP32 lanes and one tensor core. Under them is 256 KB of L1 cache and shared memory, shared by all four partitions.">
+          <rect class="ve-bd" x="14" y="24" width="932" height="264" rx="4"/><text class="ve-bdl" x="26" y="16">ONE SM</text>
+          <g class="ve-n"><rect class="sh" x="30" y="40" width="214" height="160" rx="4"/><text x="137" y="64">Partition 1</text><text class="sub" x="137" y="94">warp scheduler</text><text class="sub" x="137" y="118">64 KB registers</text><text class="sub" x="137" y="142">32 × FP32</text><text class="sub" x="137" y="166">1 tensor core</text></g>
+          <g class="ve-n"><rect class="sh" x="258" y="40" width="214" height="160" rx="4"/><text x="365" y="64">Partition 2</text><text class="sub" x="365" y="94">warp scheduler</text><text class="sub" x="365" y="118">64 KB registers</text><text class="sub" x="365" y="142">32 × FP32</text><text class="sub" x="365" y="166">1 tensor core</text></g>
+          <g class="ve-n"><rect class="sh" x="486" y="40" width="214" height="160" rx="4"/><text x="593" y="64">Partition 3</text><text class="sub" x="593" y="94">warp scheduler</text><text class="sub" x="593" y="118">64 KB registers</text><text class="sub" x="593" y="142">32 × FP32</text><text class="sub" x="593" y="166">1 tensor core</text></g>
+          <g class="ve-n"><rect class="sh" x="714" y="40" width="214" height="160" rx="4"/><text x="821" y="64">Partition 4</text><text class="sub" x="821" y="94">warp scheduler</text><text class="sub" x="821" y="118">64 KB registers</text><text class="sub" x="821" y="142">32 × FP32</text><text class="sub" x="821" y="166">1 tensor core</text></g>
+          <g class="ve-n is-key"><rect class="sh" x="30" y="216" width="898" height="56" rx="4"/><text x="479" y="244">L1 cache + shared memory · 256 KB · shared by all 4 partitions</text></g>
+        </svg>
+      </div>
+      <figcaption><span class="fig-n">Fig. 3</span>Inside one SM: 4 partitions, so 128 FP32 lanes and 4 tensor cores per SM. Loads from a peer GPU still pass through this L1.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="kpis">
+        <div class="kpi"><span class="ve-label">SMs enabled · H100 SXM5</span><span class="val">132</span>
+          <svg class="ve-bars" viewBox="0 0 260 52" role="img" aria-label="132 of 144 SMs on the full die are enabled"><text y="12">on</text><rect class="hot" x="44" y="5" width="165" height="14" rx="2"/><text x="216" y="12">132</text><text y="40">die</text><rect x="44" y="33" width="180" height="14" rx="2"/><text x="231" y="40">144</text></svg></div>
+        <div class="kpi"><span class="ve-label">Bandwidth out of one GPU</span><span class="val">900<span class="unit"> GB/s NVLink</span></span>
+          <svg class="ve-bars" viewBox="0 0 260 80" role="img" aria-label="HBM3 3,350 GB/s, NVLink 900 GB/s, PCIe Gen5 128 GB/s, both directions for the links"><text y="12">HBM</text><rect x="60" y="5" width="150" height="14" rx="2"/><text x="216" y="12">3,350</text><text y="40">NVLink</text><rect class="hot" x="60" y="33" width="40" height="14" rx="2"/><text x="106" y="40">900</text><text y="68">PCIe</text><rect x="60" y="61" width="6" height="14" rx="2"/><text x="72" y="68">128</text></svg></div>
+        <div class="kpi"><span class="ve-label">L2 cache</span><span class="val">50<span class="unit"> MB</span></span>
+          <svg class="ve-bars" viewBox="0 0 260 52" role="img" aria-label="H100 L2 is 50 MB; A100 L2 is 40 MB"><text y="12">H100</text><rect class="hot" x="52" y="5" width="150" height="14" rx="2"/><text x="208" y="12">50</text><text y="40">A100</text><rect x="52" y="33" width="120" height="14" rx="2"/><text x="178" y="40">40</text></svg></div>
+      </div>
+      <figcaption><span class="fig-n">Fig. 4</span>NVLink gives a GPU about 7× the bandwidth of PCIe, but only about a quarter of its own HBM bandwidth. Link numbers count both directions.</figcaption>
+    </figure>
+
+    <div class="callout">
+      <span class="chip info">Firmware on the GPU</span>
+      <ul>
+        <li><b>GSP</b> (GPU System Processor): a RISC-V core. Recent drivers move GPU init and management into firmware that runs here.</li>
+        <li><b>PMU</b>: power and clock management. <b>SEC2</b>: security tasks. <b>FSP</b> on Hopper: secure boot and root of trust.</li>
+        <li>These names come from NVIDIA’s open-source kernel driver. Your team’s internal docs are the authority for what runs where.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="protocol">
+    <div class="sec-head"><p class="ve-label">Protocol</p><h2>Three layers: the wire, the reliable link, and the memory transaction</h2></div>
+    <figure>
+      <div class="frame">
+        <svg class="ve-svg" viewBox="0 0 960 330" role="img" aria-label="Protocol stack on two GPUs. Each has a transaction layer, a data link layer and a physical layer. A request goes down the stack on GPU 0, across the lanes, and up the stack on GPU 1. Each layer talks logically to the same layer on the other side.">
+          <text class="ve-bdl" x="40" y="22">GPU 0 · SENDS</text><text class="ve-bdl" x="620" y="22">GPU 1 · RECEIVES</text>
+          <path class="ve-e" d="M190 104V128"/><path class="ve-e" d="M190 196V220"/>
+          <path class="ve-e" d="M770 220V196"/><path class="ve-e" d="M770 128V104"/>
+          <path class="ve-e is-async" data-ref="tl" d="M340 70H620"/><text class="ve-el" data-ref="tl" x="480" y="61">read · write · atomic</text>
+          <path class="ve-e is-async" data-ref="dl" d="M340 162H620"/><text class="ve-el" data-ref="dl" x="480" y="153">seq · ack · credits</text>
+          <path class="ve-e is-hot" data-ref="phy" d="M340 244H620"/><text class="ve-el hot" data-ref="phy" x="480" y="235">2 lanes × 100 Gb/s</text>
+          <path class="ve-e" data-ref="phy" d="M620 272H340"/><text class="ve-el" data-ref="phy" x="480" y="295">2 lanes back</text>
+
+          <g class="ve-n" data-ref="tl"><rect class="sh" x="40" y="38" width="300" height="66" rx="4"/><text x="190" y="60">Transaction layer</text><text class="sub" x="190" y="84">address · command · tag</text></g>
+          <g class="ve-n is-key" data-ref="dl"><rect class="sh" x="40" y="128" width="300" height="68" rx="4"/><text x="190" y="150">Data link layer</text><text class="sub" x="190" y="175">CRC · replay buffer</text></g>
+          <g class="ve-n" data-ref="phy"><rect class="sh" x="40" y="220" width="300" height="72" rx="4"/><text x="190" y="242">Physical layer</text><text class="sub" x="190" y="268">SerDes · PAM4 · training</text></g>
+          <g class="ve-n" data-ref="tl"><rect class="sh" x="620" y="38" width="300" height="66" rx="4"/><text x="770" y="60">Transaction layer</text><text class="sub" x="770" y="84">serve from L2 / HBM</text></g>
+          <g class="ve-n is-key" data-ref="dl"><rect class="sh" x="620" y="128" width="300" height="68" rx="4"/><text x="770" y="150">Data link layer</text><text class="sub" x="770" y="175">check CRC · return credit</text></g>
+          <g class="ve-n" data-ref="phy"><rect class="sh" x="620" y="220" width="300" height="72" rx="4"/><text x="770" y="242">Physical layer</text><text class="sub" x="770" y="268">recover clock · align lanes</text></g>
+        </svg>
+      </div>
+      <figcaption><span class="fig-n">Fig. 5</span>Dashed lines are logical conversations; only the bottom lines are real wires. The <span class="ve-ref" data-ref="dl" tabindex="0">data link layer</span> makes a noisy wire look error-free to the <span class="ve-ref" data-ref="tl" tabindex="0">transaction layer</span>.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="frame">
+        <svg class="ve-svg" viewBox="0 0 960 290" role="img" aria-label="NVLink 1 packet format. A 128-bit header flit holds a 25-bit CRC, a 20-bit data link field and an 83-bit transaction field. After the header come an optional address extension flit, an optional byte enable flit, and up to 16 data flits of 16 bytes each, 256 bytes in all.">
+          <g class="ve-dim"><path class="ext" d="M50 34V46M910 34V46"/><path class="ln" d="M50 40H910M46 44l8-8M906 44l8-8"/><text x="480" y="34">header flit · 128 bits</text></g>
+          <g class="field f-crc"><rect x="50" y="52" width="168" height="54" rx="2"/><text x="134" y="72">CRC</text><text class="sub" x="134" y="92">25 bit</text></g>
+          <g class="field f-dl"><rect x="218" y="52" width="134" height="54" rx="2"/><text x="285" y="72">data link</text><text class="sub" x="285" y="92">20 bit</text></g>
+          <g class="field f-tx"><rect x="352" y="52" width="558" height="54" rx="2"/><text x="631" y="72">transaction: command · address · tag · flow control</text><text class="sub" x="631" y="92">83 bit</text></g>
+          <path class="ann" d="M50 106L50 170M110 106L110 170" style="stroke-dasharray:3 3"/>
+          <path class="ann" d="M910 106L110 170" style="stroke-dasharray:3 3"/>
+
+          <g class="field f-crc"><rect x="50" y="170" width="60" height="44" rx="2"/><text x="80" y="192">H</text></g>
+          <g class="field f-opt"><rect x="116" y="170" width="44" height="44" rx="2"/><text x="138" y="192">AE</text></g>
+          <g class="field f-opt"><rect x="166" y="170" width="44" height="44" rx="2"/><text x="188" y="192">BE</text></g>
+          <g class="field f-data">
+            <rect x="222" y="170" width="38" height="44" rx="2"/><rect x="264" y="170" width="38" height="44" rx="2"/><rect x="306" y="170" width="38" height="44" rx="2"/><rect x="348" y="170" width="38" height="44" rx="2"/>
+            <rect x="390" y="170" width="38" height="44" rx="2"/><rect x="432" y="170" width="38" height="44" rx="2"/><rect x="474" y="170" width="38" height="44" rx="2"/><rect x="516" y="170" width="38" height="44" rx="2"/>
+            <rect x="558" y="170" width="38" height="44" rx="2"/><rect x="600" y="170" width="38" height="44" rx="2"/><rect x="642" y="170" width="38" height="44" rx="2"/><rect x="684" y="170" width="38" height="44" rx="2"/>
+            <rect x="726" y="170" width="38" height="44" rx="2"/><rect x="768" y="170" width="38" height="44" rx="2"/><rect x="810" y="170" width="38" height="44" rx="2"/><rect x="852" y="170" width="38" height="44" rx="2"/>
+            <text x="241" y="192">D0</text><text x="871" y="192">D15</text>
+          </g>
+          <g class="ve-dim"><path class="ext" d="M116 220V244M210 220V244"/><path class="ln" d="M116 238H210M112 242l8-8M206 242l8-8"/><text x="163" y="232">optional</text></g>
+          <g class="ve-dim is-key"><path class="ext" d="M222 220V244M890 220V244"/><path class="ln" d="M222 238H890M218 242l8-8M886 242l8-8"/><text x="556" y="232">up to 16 data flits × 16 B = 256 B</text></g>
+          <text class="ve-el r" x="50" y="274">CRC covers the header and the payload before it · 256 B packet = 18 flits, 94% payload</text>
+        </svg>
+      </div>
+      <figcaption><span class="fig-n">Fig. 6</span>NVLink 1 as NVIDIA presented it in 2016. A flit is the unit the link checks and replays. Later generations changed the format, and NVIDIA has not published it in the same detail.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="cases">
+        <div class="case" data-st="ok"><span class="chip ok">Normal</span><h3>Send, check, acknowledge</h3>
+          <svg class="ve-mini" viewBox="0 0 240 128" role="img" aria-label="Sender sends flit 41. Receiver checks the CRC, acknowledges 41, and returns a credit.">
+            <path class="ve-e" d="M64 44H174"/><text class="ve-el" x="119" y="34">flit 41</text>
+            <path class="ve-e" d="M174 84H64"/><text class="ve-el" x="119" y="106">ack</text>
+            <g class="ve-n"><rect class="sh" x="2" y="24" width="62" height="80" rx="4"/><text x="33" y="52">TX</text><text class="sub" x="33" y="76">seq 41</text></g>
+            <g class="ve-n"><rect class="sh" x="176" y="24" width="62" height="80" rx="4"/><text x="207" y="52">RX</text><text class="sub" x="207" y="76">CRC ok</text></g>
+          </svg></div>
+        <div class="case" data-st="warn"><span class="chip warn">Bit error</span><h3>Bad CRC: replay</h3>
+          <svg class="ve-mini" viewBox="0 0 240 128" role="img" aria-label="Flit 41 arrives with a bad CRC. The receiver drops it and asks for a replay. The sender resends flit 41 and everything after it from its replay buffer.">
+            <path class="ve-e" d="M64 44H174"/><text class="ve-el" x="119" y="34">flit 41 ✕</text>
+            <path class="ve-e is-st" d="M174 84H64"/><text class="ve-el is-st" x="119" y="106">replay 41</text>
+            <g class="ve-n is-st"><rect class="sh" x="2" y="24" width="62" height="80" rx="4"/><text x="33" y="52">TX</text><text class="sub" x="33" y="76">resend</text></g>
+            <g class="ve-n"><rect class="sh" x="176" y="24" width="62" height="80" rx="4"/><text x="207" y="52">RX</text><text class="sub" x="207" y="76">drop</text></g>
+          </svg></div>
+        <div class="case" data-st="warn"><span class="chip warn">Back-pressure</span><h3>No credits: sender waits</h3>
+          <svg class="ve-mini" viewBox="0 0 240 128" role="img" aria-label="The receive buffer is full, so the sender has zero credits and stops sending until a credit returns.">
+            <path class="ve-e is-off" d="M64 44H174"/><text class="ve-el" x="119" y="34">0 credits</text>
+            <path class="ve-e" d="M174 84H64"/><text class="ve-el" x="119" y="106">credit</text>
+            <g class="ve-n is-st"><rect class="sh" x="2" y="24" width="62" height="80" rx="4"/><text x="33" y="52">TX</text><text class="sub" x="33" y="76">wait</text></g>
+            <g class="ve-n"><rect class="sh" x="176" y="24" width="62" height="80" rx="4"/><text x="207" y="52">RX</text><text class="sub" x="207" y="76">full</text></g>
+          </svg></div>
+        <div class="case" data-st="risk"><span class="chip risk">Link fault</span><h3>Too many errors: link down</h3>
+          <svg class="ve-mini" viewBox="0 0 240 128" role="img" aria-label="Errors exceed what replay can fix. The link goes down, retrains, and the driver logs an NVLink error, Xid 74.">
+            <path class="ve-e is-off" d="M64 44H174"/><path class="ve-e is-off" d="M174 84H64"/><text class="ve-el is-st" x="119" y="68">Xid 74</text>
+            <g class="ve-n is-st"><rect class="sh is-off" x="2" y="24" width="62" height="80" rx="4"/><text x="33" y="52">TX</text><text class="sub" x="33" y="76">retrain</text></g>
+            <g class="ve-n is-st"><rect class="sh is-off" x="176" y="24" width="62" height="80" rx="4"/><text x="207" y="52">RX</text><text class="sub" x="207" y="76">down</text></g>
+          </svg></div>
+      </div>
+      <figcaption><span class="fig-n">Fig. 7</span>The data link layer handles the first three cases by itself. Only the fourth reaches software. The <a href="https://claude.ai/artifact/LZwSGiRcSWfaU8FUU94Hgj" target="_blank" rel="noopener">Link Bench</a> animates the first three.</figcaption>
+    </figure>
+  </section>
+
+  <section id="states">
+    <div class="sec-head"><p class="ve-label">Link states</p><h2>Firmware brings a link up slow, trains it, then runs it fast</h2></div>
+    <figure>
+      <div class="frame">
+        <svg class="ve-svg" viewBox="0 0 960 250" role="img" aria-label="Link state machine. OFF goes to SAFE after reset and SerDes calibration. SAFE is a low-speed mode for training and configuration. After training passes, the link goes to HS, high speed, and carries traffic. Errors send it from HS back to SAFE to retrain. A low-power state can be entered from HS.">
+          <path class="ve-e" d="M190 110H330"/><text class="ve-el" x="260" y="100">calibrate</text>
+          <path class="ve-e is-hot" d="M520 100H660"/><text class="ve-el hot" x="590" y="90">trained</text>
+          <path class="ve-e" d="M660 136H520"/><text class="ve-el" x="590" y="160">retrain</text>
+          <path class="ve-e is-async" d="M770 160V196H860V160"/><text class="ve-el" x="815" y="226">low power</text>
+
+          <g class="ve-co" transform="translate(260 64)"><circle r="11"/><text>1</text></g>
+          <g class="ve-co" transform="translate(425 40)"><circle r="11"/><text>2</text></g>
+          <g class="ve-co" transform="translate(590 54)"><circle r="11"/><text>3</text></g>
+          <g class="ve-co" transform="translate(765 40)"><circle r="11"/><text>4</text></g>
+
+          <g class="ve-n"><rect class="sh" x="40" y="70" width="150" height="80" rx="4"/><text x="115" y="98">OFF</text><text class="sub" x="115" y="122">no clock</text></g>
+          <g class="ve-n"><rect class="sh" x="330" y="56" width="190" height="104" rx="4"/><text x="425" y="88">SAFE</text><text class="sub" x="425" y="112">low speed</text><text class="sub" x="425" y="134">training · config</text></g>
+          <g class="ve-n is-key"><rect class="sh" x="660" y="56" width="210" height="104" rx="4"/><text x="765" y="88">HS</text><text class="sub" x="765" y="112">high speed</text><text class="sub" x="765" y="134">carries traffic</text></g>
+        </svg>
+      </div>
+      <figcaption><span class="fig-n">Fig. 8</span>State names as used in NVIDIA’s open-source kernel driver. The exact sequence differs per generation and per product.</figcaption>
+    </figure>
+    <ol class="remember" style="list-style:none;padding-left:0">
+      <li><b>① Reset and calibrate.</b> Power the SerDes, lock the PLLs, calibrate the receivers.</li>
+      <li><b>② Train in SAFE.</b> Run training sequences, tune equalization, and align the lanes so bits arrive in order.</li>
+      <li><b>③ Go to HS.</b> Set up the data link: starting sequence numbers and the credit count each side may use.</li>
+      <li><b>④ Watch it run.</b> Read CRC, replay and recovery counters. Retrain or take the link down when a threshold trips.</li>
+    </ol>
+  </section>
+
+  <section id="switch">
+    <div class="sec-head"><p class="ve-label">NVSwitch</p><h2>NVSwitch connects every GPU to every other GPU at full link speed</h2></div>
+    <figure>
+      <div class="frame">
+        <svg class="ve-svg" viewBox="0 0 960 360" role="img" aria-label="HGX H100 board. Eight GPUs in a row on top, four NVSwitch chips below. Every GPU connects to all four switches: 5 links to switch 1, 4 to switch 2, 4 to switch 3 and 5 to switch 4, for 18 links in all.">
+          <path class="ve-e no-ah" d="M174 100L140 250M174 100L370 250M174 100L600 250M174 100L830 250"/>
+          <path class="ve-e no-ah" d="M290 100L140 250M290 100L370 250M290 100L600 250M290 100L830 250"/>
+          <path class="ve-e no-ah" d="M406 100L140 250M406 100L370 250M406 100L600 250M406 100L830 250"/>
+          <path class="ve-e no-ah" d="M522 100L140 250M522 100L370 250M522 100L600 250M522 100L830 250"/>
+          <path class="ve-e no-ah" d="M638 100L140 250M638 100L370 250M638 100L600 250M638 100L830 250"/>
+          <path class="ve-e no-ah" d="M754 100L140 250M754 100L370 250M754 100L600 250M754 100L830 250"/>
+          <path class="ve-e no-ah" d="M870 100L140 250M870 100L370 250M870 100L600 250M870 100L830 250"/>
+          <path class="ve-e no-ah is-hot" d="M58 100L140 250M58 100L370 250M58 100L600 250M58 100L830 250"/>
+          <text class="ve-el hot" x="86" y="186">5</text><text class="ve-el hot" x="226" y="172">4</text><text class="ve-el hot" x="320" y="164">4</text><text class="ve-el hot" x="430" y="150">5</text>
+
+          <g class="ve-n is-key"><rect class="sh" x="14" y="40" width="88" height="60" rx="4"/><text x="58" y="62">GPU 0</text><text class="sub" x="58" y="84">18 links</text></g>
+          <g class="ve-n"><rect class="sh" x="130" y="40" width="88" height="60" rx="4"/><text x="174" y="70">GPU 1</text></g>
+          <g class="ve-n"><rect class="sh" x="246" y="40" width="88" height="60" rx="4"/><text x="290" y="70">GPU 2</text></g>
+          <g class="ve-n"><rect class="sh" x="362" y="40" width="88" height="60" rx="4"/><text x="406" y="70">GPU 3</text></g>
+          <g class="ve-n"><rect class="sh" x="478" y="40" width="88" height="60" rx="4"/><text x="522" y="70">GPU 4</text></g>
+          <g class="ve-n"><rect class="sh" x="594" y="40" width="88" height="60" rx="4"/><text x="638" y="70">GPU 5</text></g>
+          <g class="ve-n"><rect class="sh" x="710" y="40" width="88" height="60" rx="4"/><text x="754" y="70">GPU 6</text></g>
+          <g class="ve-n"><rect class="sh" x="826" y="40" width="88" height="60" rx="4"/><text x="870" y="70">GPU 7</text></g>
+
+          <g class="ve-n" data-ref="sw"><rect class="sh" x="70" y="250" width="140" height="74" rx="4"/><text x="140" y="276">NVSwitch 1</text><text class="sub" x="140" y="300">64 ports</text></g>
+          <g class="ve-n" data-ref="sw"><rect class="sh" x="300" y="250" width="140" height="74" rx="4"/><text x="370" y="276">NVSwitch 2</text><text class="sub" x="370" y="300">64 ports</text></g>
+          <g class="ve-n" data-ref="sw"><rect class="sh" x="530" y="250" width="140" height="74" rx="4"/><text x="600" y="276">NVSwitch 3</text><text class="sub" x="600" y="300">64 ports</text></g>
+          <g class="ve-n" data-ref="sw"><rect class="sh" x="760" y="250" width="140" height="74" rx="4"/><text x="830" y="276">NVSwitch 4</text><text class="sub" x="830" y="300">64 ports</text></g>
+        </svg>
+      </div>
+      <figcaption><span class="fig-n">Fig. 9</span>Each GPU spreads its 18 links over the 4 switches as 5 + 4 + 4 + 5. Any pair of GPUs gets the full 900 GB/s, with one switch hop in between. Host software (Fabric Manager) sets up the switch routing.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="cases">
+        <div class="case" data-st="info"><span class="chip info">Without SHARP</span><h3>GPUs exchange partial sums</h3>
+          <svg class="ve-mini" viewBox="0 0 240 150" role="img" aria-label="Without SHARP, each GPU sends its data through the switch to the other GPUs, and each GPU adds the results itself.">
+            <path class="ve-e" d="M40 44V88"/><path class="ve-e" d="M200 88V44"/><path class="ve-e" d="M93 88V44"/><path class="ve-e" d="M147 44V88"/>
+            <g class="ve-n"><rect class="sh" x="70" y="88" width="100" height="44" rx="4"/><text x="120" y="110">switch</text></g>
+            <g class="ve-n is-st"><rect class="sh" x="2" y="4" width="76" height="40" rx="4"/><text x="40" y="24">GPU</text></g>
+            <g class="ve-n is-st"><rect class="sh" x="82" y="4" width="76" height="40" rx="4"/><text x="120" y="24">GPU</text></g>
+            <g class="ve-n is-st"><rect class="sh" x="162" y="4" width="76" height="40" rx="4"/><text x="200" y="24">GPU</text></g>
+            <text class="ve-el" x="120" y="146">GPUs add · many rounds</text>
+          </svg></div>
+        <div class="case" data-st="ok"><span class="chip ok">With NVLink SHARP</span><h3>The switch does the adding</h3>
+          <svg class="ve-mini" viewBox="0 0 240 150" role="img" aria-label="With NVLink SHARP, each GPU sends its data once to the switch. The switch adds it and multicasts the sum back to every GPU.">
+            <path class="ve-e" d="M40 44V88"/><path class="ve-e" d="M200 44V88"/><path class="ve-e" d="M120 44V88"/>
+            <path class="ve-e is-st" d="M70 110H30V50"/><path class="ve-e is-st" d="M170 110H212V50"/>
+            <g class="ve-n is-st"><rect class="sh" x="70" y="88" width="100" height="44" rx="4"/><text x="120" y="110">switch Σ</text></g>
+            <g class="ve-n"><rect class="sh" x="2" y="4" width="76" height="40" rx="4"/><text x="40" y="24">GPU</text></g>
+            <g class="ve-n"><rect class="sh" x="82" y="4" width="76" height="40" rx="4"/><text x="120" y="24">GPU</text></g>
+            <g class="ve-n"><rect class="sh" x="162" y="4" width="76" height="40" rx="4"/><text x="200" y="24">GPU</text></g>
+            <text class="ve-el is-st" x="120" y="146">sum sent back once</text>
+          </svg></div>
+      </div>
+      <figcaption><span class="fig-n">Fig. 10</span>An all-reduce sums a buffer across all GPUs. With SHARP, each GPU sends its part once and gets the sum once, so less data crosses each link.</figcaption>
+    </figure>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>System</th><th class="n">GPUs</th><th class="n">NVSwitch chips</th><th class="n">Per GPU</th><th class="n">All GPUs</th></tr></thead>
+        <tbody>
+          <tr><td>HGX H100 (NVLink 4)</td><td class="n">8</td><td class="n">4</td><td class="n">900&nbsp;GB/s</td><td class="n">7.2&nbsp;TB/s</td></tr>
+          <tr><td>GB200 NVL72 (NVLink 5)</td><td class="n">72</td><td class="n">18</td><td class="n">1.8&nbsp;TB/s</td><td class="n">130&nbsp;TB/s</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="remember">
+    <div class="sec-head"><p class="ve-label">Remember</p><h2>Five things to keep in your head</h2></div>
+    <ol class="remember">
+      <li>NVLink carries memory reads, writes and atomics. The page table decides whether a load goes to local HBM or across a link.</li>
+      <li>A link is two one-way sub-links. Each flit is spread across all lanes of its sub-link.</li>
+      <li>The data link layer hides bit errors: CRC finds them, the replay buffer fixes them, credits stop buffer overflow.</li>
+      <li>Firmware brings each link up: calibrate, train in SAFE, run in HS, then watch the error counters.</li>
+      <li>NVSwitch gives all-to-all bandwidth, and with SHARP it can also do the adding for an all-reduce.</li>
+    </ol>
+  </section>
+
+  <section class="sources" aria-label="Sources">
+    <p class="ve-label">Sources</p>
+    <ul>
+      <li><a href="https://resources.nvidia.com/en-us-tensor-core" target="_blank" rel="noopener">NVIDIA H100 Tensor Core GPU Architecture whitepaper</a>: SM, GPC, L2, HBM3 and NVLink 4 numbers.</li>
+      <li><a href="https://old.hotchips.org/wp-content/uploads/hc_archives/hc28/HC28.22-Monday-Epub/HC28.22.10-GPU-HPC-Epub/HC28.22.121-Pascal-GPU-DanskinFoley-NVIDIA-v06-6_7.pdf" target="_blank" rel="noopener">Danskin and Foley, “Pascal GPU with NVLink”, Hot Chips 28 (2016)</a>: NVLink 1 packet format.</li>
+      <li><a href="https://en.wikichip.org/wiki/NVLINK" target="_blank" rel="noopener">WikiChip: NVLink</a>: header field widths (secondary source).</li>
+      <li><a href="https://docs.nvidia.com/networking/display/SGXH100/Introduction" target="_blank" rel="noopener">NVIDIA NVLink Switch System manual</a>: 64 NVLink 4 ports per NVSwitch.</li>
+      <li><a href="https://www.naddod.com/blog/brief-discussion-on-nvidia-nvlink-network" target="_blank" rel="noopener">Naddod: Brief discussion on NVIDIA NVLink network</a>: the 5-4-4-5 link split on HGX H100.</li>
+      <li><a href="https://github.com/NVIDIA/open-gpu-kernel-modules" target="_blank" rel="noopener">NVIDIA open-gpu-kernel-modules</a>: GSP, microcontroller and link state names.</li>
+    </ul>
+  </section>
+</main>
+
+<script>
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Linked highlighting: hovering any [data-ref], or focusing a prose term, lights every element that shares a ref.
+  const linked = [...document.querySelectorAll('[data-ref]')], refs = (el) => el.dataset.ref.split(' ');
+  let hovered = null, focused = null;
+  const paint = () => {
+    const keys = (hovered || focused)?.dataset.ref.split(' ') ?? [];
+    for (const t of linked) t.classList.toggle('is-lit', refs(t).some((k) => keys.includes(k)));
+    for (const svg of document.querySelectorAll('svg')) svg.classList.toggle('has-lit', !!svg.querySelector('.is-lit'));
+  };
+  for (const el of linked) {
+    el.addEventListener('pointerenter', () => { hovered = el; paint(); });
+    el.addEventListener('pointerleave', () => { hovered = null; paint(); });
+    el.addEventListener('focus', () => { focused = el; paint(); });
+    el.addEventListener('blur', () => { focused = null; paint(); });
+  }
+
+  // Stepper / scene player: opens on the full picture; Play replays from step 1.
+  for (const root of document.querySelectorAll('.ve-steps')) {
+    const parts = [...root.querySelectorAll('[data-s]')], caps = [...root.querySelectorAll('.ve-cap li')];
+    const range = root.querySelector('input[type=range]'), play = root.querySelector('[data-play]');
+    const n = caps.length; let i = 0, timer = null;
+    if (range) range.max = n - 1;
+    const show = (k) => {
+      i = Math.max(0, Math.min(n - 1, k));
+      root.classList.remove('is-still');
+      for (const el of parts) { const s = el.dataset.s.trim().split(' ').map(Number); el.classList.toggle('on', s[0] <= i + 1); el.classList.toggle('now', s.includes(i + 1)); }
+      caps.forEach((c, j) => c.hidden = j !== i);
+      root.classList.toggle('is-full', i === n - 1);
+      root.dispatchEvent(new Event('ve:step'));
+      if (range) range.value = i;
+    };
+    const stop = () => { clearInterval(timer); timer = null; if (play) play.textContent = 'Play'; };
+    root.addEventListener('click', (e) => { const b = e.target.closest('[data-go]'); if (b) { stop(); show(i + +b.dataset.go); } });
+    range?.addEventListener('input', () => { stop(); show(+range.value); });
+    play?.addEventListener('click', () => {
+      if (timer) return stop();
+      if (i === n - 1) show(0);
+      play.textContent = 'Pause';
+      timer = setInterval(() => (i < n - 1 ? show(i + 1) : stop()), 3500);
+    });
+    show(n - 1);
+    root.classList.add('is-still');
+  }
+
+  // Flow dots on Fig. 1: requests out along the top, data back along the bottom. Only on the full picture and while visible.
+  if (!still) {
+    for (const svg of document.querySelectorAll('svg:has([data-flow])')) {
+      const layer = svg.querySelector('.ve-dots'), steps = svg.closest('.ve-steps');
+      const routes = [...svg.querySelectorAll('[data-flow]')].map((p, k) => ({ p, len: p.getTotalLength(), every: +p.dataset.every, next: k * 450 }));
+      let dots = [], visible = false, running = false, t0 = null;
+      const live = () => visible && (!steps || steps.classList.contains('is-full'));
+      const tick = (t) => {
+        if (!live()) { running = false; for (const d of dots) d.c.remove(); dots = []; return; }
+        if (t0 === null) t0 = t;
+        for (const r of routes) if (t - t0 >= r.next) {
+          r.next = t - t0 + r.every;
+          const c = document.createElementNS(svg.namespaceURI, 'circle');
+          c.setAttribute('r', 4); c.setAttribute('class', r.p.dataset.flow); layer.append(c);
+          dots.push({ c, r, t0: t });
+        }
+        dots = dots.filter((d) => {
+          const s = (t - d.t0) * .3;
+          if (s > d.r.len) { d.c.remove(); return false; }
+          const pt = d.r.p.getPointAtLength(s);
+          d.c.setAttribute('cx', pt.x); d.c.setAttribute('cy', pt.y);
+          return true;
+        });
+        requestAnimationFrame(tick);
+      };
+      const start = () => { if (!running && live()) { running = true; requestAnimationFrame(tick); } };
+      steps?.addEventListener('ve:step', start);
+      new IntersectionObserver((entries) => { visible = entries[entries.length - 1].isIntersecting; start(); }).observe(svg);
+    }
+  }
+
+  // Section bar: mark the section in view.
+  const navLinks = [...document.querySelectorAll('nav.bar a')];
+  const sectionObserver = new IntersectionObserver((entries) => {
+    for (const e of entries) if (e.isIntersecting) for (const a of navLinks) a.classList.toggle('is-on', a.getAttribute('href') === '#' + e.target.id);
+  }, { rootMargin: '-10% 0px -80% 0px' });
+  for (const a of navLinks) { const s = document.querySelector(a.getAttribute('href')); if (s) sectionObserver.observe(s); }
+</script>
