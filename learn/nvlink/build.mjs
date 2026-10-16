@@ -455,3 +455,35 @@ const body = k.plateHtml({
 const file = theme === "light" ? "nvlink-light.html" : "nvlink.html";
 writeFileSync(join(HERE, file), k.pageHtml({ title: "NVLink link", theme, body: `<style>${css}</style>` + body, script: kitScript() + live }));
 console.log("wrote", file);
+
+// Hosted-page version: no document skeleton of its own, and it follows the viewer's light/dark theme.
+if (theme === "dark") {
+  const themeSync = `
+const nvRoot = document.getElementById("nv");
+const prefersLight = matchMedia("(prefers-color-scheme: light)");
+const applyTheme = () => {
+  const chosen = document.documentElement.dataset.theme;
+  nvRoot.dataset.theme = (chosen ? chosen === "light" : prefersLight.matches) ? "light" : "dark";
+};
+applyTheme();
+prefersLight.addEventListener("change", applyTheme);
+new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+`;
+  const pageCss = `
+:root{--nv-page:#0b0b0b;color-scheme:dark}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){--nv-page:#f2f2ef;color-scheme:light}}
+:root[data-theme="light"]{--nv-page:#f2f2ef;color-scheme:light}
+*{box-sizing:border-box}
+body{margin:0;background:var(--nv-page)}
+#nv{min-height:100%;background:var(--anatomy-page);color:var(--anatomy-text);font:14px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:32px 64px}
+#nv .iso-page{width:min(650px,100%);margin:0 auto}
+`;
+  const page = `<title>NVLink Link Bench</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>${pageCss}${k.ISO_CSS}${css}</style>
+<div class="iso" id="nv" data-theme="dark"><main class="iso-page">${body}</main></div>
+<script type="module">${(themeSync + kitScript() + live).replace(/<\/(script)/gi, "<\\/$1")}</script>
+`;
+  writeFileSync(join(HERE, "nvlink-artifact.html"), page);
+  console.log("wrote nvlink-artifact.html");
+}
