@@ -1,0 +1,409 @@
+<title>חידון GPU ו-NVLink</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  /* Layout: Paper register, RTL. One reading column of question cards, grouped by level; a sticky score bar on top. */
+  :root {
+    color-scheme: light;
+    --bg: #f7f7f4; --surface: #ffffff; --border: #e3e3dc; --border-bright: #8e8e8a;
+    --text: #17191c; --text-dim: #575c63; --accent: #2c4cd0; --accent-dim: rgba(44,76,208,.10);
+    --ok: #1d7443; --ok-dim: rgba(29,116,67,.10); --risk: #b3301d; --risk-dim: rgba(179,48,29,.09); --warn: #836000;
+    --font-display: 'Frank Ruhl Libre', 'Times New Roman', serif;
+    --font-body: 'Assistant', 'Segoe UI', Arial, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+    --s-1: .25rem; --s-2: .5rem; --s-3: .75rem; --s-4: 1rem; --s-5: 1.5rem; --s-6: 2rem; --s-7: 3rem; --s-8: 4.5rem;
+    --r-1: 4px; --r-2: 10px; --ease: cubic-bezier(.16,1,.3,1);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #111316; --surface: #181b1f; --border: #262a30; --border-bright: #62676c;
+      --text: #e8e8e3; --text-dim: #a3a9b1; --accent: #93a6ff; --accent-dim: rgba(147,166,255,.13);
+      --ok: #6cc492; --ok-dim: rgba(108,196,146,.12); --risk: #f0806b; --risk-dim: rgba(240,128,107,.12); --warn: #e3b94d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #111316; --surface: #181b1f; --border: #262a30; --border-bright: #62676c;
+    --text: #e8e8e3; --text-dim: #a3a9b1; --accent: #93a6ff; --accent-dim: rgba(147,166,255,.13);
+    --ok: #6cc492; --ok-dim: rgba(108,196,146,.12); --risk: #f0806b; --risk-dim: rgba(240,128,107,.12); --warn: #e3b94d;
+    color-scheme: dark;
+  }
+  html { font-size: 18px; }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 400 1rem/1.65 var(--font-body); -webkit-font-smoothing: antialiased; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  a { color: var(--accent); text-underline-offset: .2em; }
+  .ltr { direction: ltr; unicode-bidi: isolate; }
+  code, .mono { font: 500 .85em var(--font-mono); direction: ltr; unicode-bidi: isolate; }
+
+  .bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: color-mix(in srgb, var(--bg) 94%, transparent); border-bottom: 1px solid var(--border); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .bar-in { max-width: 46rem; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-4); padding-block: var(--s-2); }
+  .bar nav { display: flex; gap: var(--s-3); flex-wrap: wrap; }
+  .bar nav a { font-size: .85rem; color: var(--text-dim); text-decoration: none; font-weight: 600; }
+  .bar nav a:hover { color: var(--accent); }
+  .score { margin-inline-start: auto; display: flex; align-items: center; gap: var(--s-3); font-size: .9rem; color: var(--text-dim); }
+  .score b { color: var(--text); font-variant-numeric: tabular-nums; }
+  .meter { width: 7rem; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .meter i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .4s var(--ease); }
+  button.reset { font: 600 .8rem var(--font-body); color: var(--text-dim); background: none; border: 1px solid var(--border-bright); border-radius: var(--r-1); padding: 2px var(--s-2); cursor: pointer; }
+  button.reset:hover { color: var(--text); border-color: var(--accent); }
+
+  main { max-width: 46rem; margin: 0 auto; padding-block: var(--s-7) var(--s-8); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: var(--s-7); }
+  header { display: grid; gap: var(--s-3); }
+  .kicker { font: 600 .8rem var(--font-body); color: var(--accent); letter-spacing: .02em; }
+  h1 { font: 700 clamp(2rem, 6vw, 3.2rem)/1.1 var(--font-display); text-wrap: balance; }
+  .lead { font-size: 1.15rem; color: var(--text-dim); max-width: 38ch; }
+  .lead b { color: var(--text); }
+  .how { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: var(--s-3); margin-top: var(--s-2); }
+  .how div { border-top: 2px solid var(--border); padding-top: var(--s-2); font-size: .95rem; color: var(--text-dim); }
+  .how b { display: block; color: var(--text); }
+
+  section.level { display: grid; gap: var(--s-5); scroll-margin-top: 4rem; }
+  .level-head { display: grid; gap: var(--s-1); border-top: 1px solid var(--border); padding-top: var(--s-4); }
+  .level-head h2 { font: 700 1.7rem/1.2 var(--font-display); }
+  .level-head p { color: var(--text-dim); }
+  .level-score { font-size: .9rem; color: var(--text-dim); }
+  .level-score b { color: var(--text); font-variant-numeric: tabular-nums; }
+
+  .q { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-2); padding: var(--s-5); display: grid; gap: var(--s-4); }
+  .q-top { display: flex; align-items: center; gap: var(--s-2); font-size: .85rem; color: var(--text-dim); }
+  .q-num { font: 600 .8rem var(--font-mono); color: var(--accent); }
+  .chip { font: 600 .75rem var(--font-body); border: 1px solid currentColor; border-radius: var(--r-1); padding: 0 var(--s-2); }
+  .q h3 { font: 600 1.15rem/1.45 var(--font-body); text-wrap: pretty; }
+  .opts { list-style: none; padding: 0; display: grid; gap: var(--s-2); }
+  .opt { width: 100%; text-align: start; display: grid; grid-template-columns: 2rem minmax(0, 1fr) 1.4rem; align-items: center; gap: var(--s-2); font: 400 1rem/1.45 var(--font-body); color: var(--text); background: var(--bg); border: 1px solid var(--border-bright); border-radius: var(--r-1); padding: var(--s-2) var(--s-3); cursor: pointer; transition: border-color .15s var(--ease), background .15s var(--ease); }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-dim); }
+  .opt:disabled { cursor: default; }
+  .opt .let { font: 600 .9rem var(--font-body); color: var(--text-dim); width: 1.6rem; height: 1.6rem; border: 1px solid var(--border-bright); border-radius: 50%; display: grid; place-items: center; }
+  .opt .mark { font-weight: 700; text-align: center; }
+  .opt.is-right { border-color: var(--ok); background: var(--ok-dim); }
+  .opt.is-right .let { border-color: var(--ok); color: var(--ok); }
+  .opt.is-right .mark { color: var(--ok); }
+  .opt.is-wrong { border-color: var(--risk); background: var(--risk-dim); }
+  .opt.is-wrong .let { border-color: var(--risk); color: var(--risk); }
+  .opt.is-wrong .mark { color: var(--risk); }
+  .opt.is-dim { opacity: .62; }
+
+  .ans { display: grid; gap: var(--s-3); border-top: 1px solid var(--border); padding-top: var(--s-4); }
+  .ans[hidden] { display: none !important; }
+  .verdict { font-weight: 700; }
+  .verdict.ok { color: var(--ok); } .verdict.no { color: var(--risk); }
+  .ans h4 { font: 700 .9rem var(--font-body); color: var(--text-dim); }
+  .ans p { max-width: 62ch; }
+  .ans .why-not { color: var(--text-dim); }
+  .ans .more { font-size: .95rem; }
+  .facts { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+  .facts span { font: 500 .8rem var(--font-mono); direction: ltr; unicode-bidi: isolate; background: var(--accent-dim); color: var(--text); border-radius: var(--r-1); padding: 2px var(--s-2); }
+
+  .done { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-2); padding: var(--s-5); display: grid; gap: var(--s-2); }
+  .done h2 { font: 700 1.5rem var(--font-display); }
+  .done p { color: var(--text-dim); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div dir="rtl" lang="he">
+  <div class="bar">
+    <div class="bar-in">
+      <nav aria-label="שלבים"><a href="#l1">שלב 1 · יסודות</a><a href="#l2">שלב 2 · יחידות ו-NVLink</a><a href="#l3">שלב 3 · לעומק</a></nav>
+      <div class="score" aria-live="polite">
+        <span>נכונות: <b id="sc-right">0</b> מתוך <b id="sc-done">0</b> · נענו <b id="sc-ans">0</b>/<b id="sc-total">28</b></span>
+        <span class="meter" aria-hidden="true"><i id="sc-bar"></i></span>
+        <button class="reset" type="button" id="reset">להתחיל מחדש</button>
+      </div>
+    </div>
+  </div>
+
+  <main>
+    <header>
+      <p class="kicker">GPU ו-NVLink · חידון למידה</p>
+      <h1>28 שאלות, מהיסודות ועד הקושחה</h1>
+      <p class="lead">כל שאלה אמריקאית מלמדת דבר אחד. <b>לחיצה על תשובה מציגה מיד הסבר מפורט</b>, וגם למה התשובות האחרות לא נכונות.</p>
+      <div class="how">
+        <div><b>שלב 1 · יסודות</b>מה זה GPU, מה היחידות הראשיות, ולמה צריך NVLink.</div>
+        <div><b>שלב 2 · יחידות ו-NVLink</b>איך היחידות עובדות יחד, ומה זה link ו-NVSwitch.</div>
+        <div><b>שלב 3 · לעומק</b>הפרוטוקול, שגיאות, מצבי הקישור ואיפה הקוד רץ.</div>
+      </div>
+    </header>
+
+    <section class="level" id="l1" aria-labelledby="l1h">
+      <div class="level-head"><h2 id="l1h">שלב 1 · יסודות</h2><p>שאלות קלות. כדאי להתחיל כאן גם אם זה נראה מוכר.</p><p class="level-score" data-level-score="1"></p></div>
+      <div class="qs" data-level="1"></div>
+    </section>
+    <section class="level" id="l2" aria-labelledby="l2h">
+      <div class="level-head"><h2 id="l2h">שלב 2 · יחידות ו-NVLink</h2><p>איך היחידות עובדות יחד, ומה עושה הקישור בין GPU-ים.</p><p class="level-score" data-level-score="2"></p></div>
+      <div class="qs" data-level="2"></div>
+    </section>
+    <section class="level" id="l3" aria-labelledby="l3h">
+      <div class="level-head"><h2 id="l3h">שלב 3 · לעומק: פרוטוקול וקושחה</h2><p>השאלות שמהנדס/ת קושחה צריך/ה לדעת לענות עליהן.</p><p class="level-score" data-level-score="3"></p></div>
+      <div class="qs" data-level="3"></div>
+    </section>
+
+    <div class="done" id="done" hidden>
+      <h2 id="done-title"></h2>
+      <p id="done-text"></p>
+    </div>
+  </main>
+</div>
+
+<script>
+const PAGES = {
+  basics: ['GPU Basics', 'https://claude.ai/artifact/FV5HpdkZQ8sqh8RksK95mR'],
+  units: ['GPU Units', 'https://claude.ai/artifact/WqRyunXq2fnfKn22ZVh1go'],
+  where: ['Where NVLink Code Runs', 'https://claude.ai/artifact/YA2wt3Y53VhBivNVX15i7Y'],
+  depth: ['NVLink in Depth', 'https://claude.ai/artifact/Xi5x4zrhVAFWWzYdcBWBzd'],
+  bench: ['NVLink Link Bench', 'https://claude.ai/artifact/LZwSGiRcSWfaU8FUU94Hgj'],
+};
+
+// level, question, options, index of the right one, detailed answer, why the others are wrong, key facts, page to read
+const Q = [
+  { l: 1, q: 'מה ההבדל העיקרי בין GPU ל-CPU?',
+    o: ['ל-GPU יש כמה ליבות חזקות מאוד, וכל אחת מריצה משימה אחרת', 'ל-GPU יש אלפי נתיבי חישוב פשוטים שמריצים את אותה הוראה על הרבה נתונים', 'ה-GPU מריץ את מערכת ההפעלה במקום ה-CPU', 'ה-GPU מהיר רק כי השעון שלו מהיר יותר'], a: 1,
+    e: 'ל-CPU יש מעט ליבות חזקות, וכל אחת עושה עבודה אחרת. ל-GPU יש אלפי נתיבים פשוטים: ב-H100 יש 132 SM, ובכל אחד 128 נתיבי FP32, כלומר כ-16,900 נתיבים. כל 32 נתיבים (warp) מבצעים את אותה הוראה באותו רגע, כל נתיב על נתון אחר. לכן GPU מהיר כשאותו צעד חוזר על המון נתונים: כפל מטריצות ב-AI, או פיקסלים בגרפיקה. המהירות באה מהמקביליות, לא מהשעון.',
+    n: '"כמה ליבות חזקות" מתאר CPU, לא GPU. מערכת ההפעלה והדרייבר רצים על ה-CPU, לא על ה-GPU. והשעון של GPU בדרך כלל איטי יותר משל CPU.',
+    f: ['132 SM × 128 lanes ≈ 16,900', 'warp = 32 threads'], p: 'basics' },
+  { l: 1, q: 'מה זה SM?',
+    o: ['יחידת זיכרון גדולה שנמצאת ליד השבב', 'בקר קטן שמריץ את הקושחה', 'הליבה של ה-GPU, שמריצה את ה-threads', 'הממשק שמחבר את ה-GPU ל-CPU'], a: 2,
+    e: 'SM הוא Streaming Multiprocessor, הליבה האמיתית של ה-GPU. ב-H100 SXM5 פעילים 132 SM (בשבב המלא יש 144), והם מקובצים ב-8 קבוצות שנקראות GPC. כל SM מחולק ל-4 חלקים (partitions). בכל חלק יש warp scheduler, רגיסטרים בנפח 64 KB, 32 נתיבי FP32 ו-tensor core אחד. ארבעת החלקים חולקים 256 KB של L1 ו-shared memory.',
+    n: 'זיכרון גדול ליד השבב הוא HBM. הבקר שמריץ קושחה הוא GSP. הממשק ל-CPU הוא PCIe.',
+    f: ['132 SM enabled', '4 partitions / SM', '256 KB L1 / SM'], p: 'units' },
+  { l: 1, q: 'כמה threads יש ב-warp אחד?',
+    o: ['16', '32', '64', '1,024'], a: 1,
+    e: 'warp הוא קבוצה של 32 threads שתמיד מריצים את אותה הוראה יחד. ה-warp הוא יחידת העבודה האמיתית של החומרה: בכל מחזור שעון, ה-scheduler בוחר warp שמוכן לרוץ ושולח הוראה אחת ל-32 הנתיבים שלו. אם threads בתוך warp הולכים לכיוונים שונים בקוד (if/else), החומרה מריצה כל צד בנפרד, וזה מאט.',
+    n: '1,024 הוא הגודל המרבי של thread block, לא של warp. 16 ו-64 לא מתאימים ל-NVIDIA (ב-GPU של חברות אחרות יש גדלים אחרים).',
+    f: ['warp = 32', 'block ≤ 1,024 threads'], p: 'units' },
+  { l: 1, q: 'איזו יחידה קוראת את רשימת הפקודות שהדרייבר כתב?',
+    o: ['Copy engine', 'Front end', 'L2 cache', 'MMU'], a: 1,
+    e: 'הדרייבר ב-CPU כותב פקודות לתוך buffer בזיכרון (pushbuffer), ואז "מצלצל בפעמון": כותב לרגיסטר doorbell ב-GPU. ה-front end שולף את הפקודות, מפענח אותן, ומעביר עבודה הלאה. החלק שלו שנקרא work distributor מחלק את ה-thread blocks בין ה-SM-ים הפנויים.',
+    n: 'Copy engine מעתיק נתונים, הוא לא קורא פקודות. L2 הוא זיכרון מטמון. MMU מתרגם כתובות.',
+    f: ['pushbuffer', 'doorbell'], p: 'units' },
+  { l: 1, q: 'מה התפקיד של Copy engine?',
+    o: ['לחשב כפל מטריצות', 'להעתיק בלוקים גדולים של נתונים (DMA) בין זיכרון המחשב, זיכרון ה-GPU ו-GPU-ים אחרים', 'לתרגם כתובות וירטואליות', 'לאתחל את ה-GPU בהדלקה'], a: 1,
+    e: 'Copy engines הם מנועי DMA: הם מעבירים בלוקים גדולים של זיכרון בלי להעסיק את ה-SM-ים. כש-cudaMemcpy מעתיק קלט מזיכרון המחשב ל-HBM, זה copy engine שעושה את העבודה דרך PCIe. הם יכולים להעתיק גם ל-GPU אחר דרך NVLink. היתרון: ההעתקה וה-חישוב רצים במקביל.',
+    n: 'כפל מטריצות נעשה ב-tensor cores שבתוך ה-SM. תרגום כתובות הוא תפקיד ה-MMU. אתחול ה-GPU הוא עבודה של הקושחה (GSP ובקרים נוספים).',
+    f: ['cudaMemcpy → copy engine'], p: 'units' },
+  { l: 1, q: 'איפה נמצא הזיכרון הגדול ביותר של ה-GPU?',
+    o: ['L1', 'L2', 'Registers', 'HBM'], a: 3,
+    e: 'HBM (High Bandwidth Memory) הוא שבבי זיכרון שמוערמים אחד על השני ליד ה-GPU. ב-H100 SXM5 יש 80 GB בקצב 3.35 TB/s. ככל שהזיכרון רחוק יותר מהנתיבים, הוא גדול ואיטי יותר: registers ו-L1 הם 256 KB לכל SM, ה-L2 הוא 50 MB לכל השבב, וה-HBM הוא 80 GB. קוד טוב שומר נתונים קרוב לנתיבים כמה שאפשר.',
+    n: 'L1 ו-registers הם הקטנים והמהירים ביותר. L2 גדול מהם (50 MB) אבל קטן פי אלפים מ-HBM.',
+    f: ['HBM 80 GB · 3.35 TB/s', 'L2 50 MB'], p: 'units' },
+  { l: 1, q: 'מה זה GSP?',
+    o: ['סוג של זיכרון מטמון', 'ליבת RISC-V בתוך ה-GPU שמריצה קושחה שמאתחלת ומנהלת את השבב', 'ספרייה של CUDA', 'שם נוסף ל-SM'], a: 1,
+    e: 'GSP הוא GPU System Processor: מעבד RISC-V קטן בתוך ה-GPU. הוא מריץ את GSP-RM, החלק של הדרייבר של NVIDIA שעבר לרוץ על ה-GPU עצמו. לצידו יש בקרים קטנים נוספים: PMU לניהול צריכת חשמל ושעונים, SEC2 למשימות אבטחה, ו-FSP ב-Hopper לאתחול מאובטח. כאן רצה הקושחה, ולכן זה "הבית" של מהנדס/ת קושחה.',
+    n: 'GSP הוא מעבד, לא זיכרון ולא ספרייה. ה-SM מריץ את קוד המשתמש; ה-GSP מריץ קוד ניהול.',
+    f: ['GSP = RISC-V', 'PMU · SEC2 · FSP'], p: 'units' },
+  { l: 1, q: 'למה GPU-ים צריכים NVLink?',
+    o: ['כדי להתחבר למסך', 'כי PCIe מהיר מדי', 'כי מודלים גדולים מתחלקים בין הרבה GPU-ים שמחליפים נתונים כל הזמן, ו-PCIe איטי מדי לזה', 'רק כדי לחסוך בחשמל'], a: 2,
+    e: 'מודל AI גדול לא נכנס ב-GPU אחד, אז העבודה מתחלקת בין כמה GPU-ים, והם צריכים להחליף תוצאות כל הזמן. PCIe Gen5 ×16 נותן כ-128 GB/s בשני הכיוונים יחד. NVLink 4 ב-H100 נותן 900 GB/s, בערך פי 7. ובכל זאת זה עדיין פחות מהזיכרון המקומי של ה-GPU (3,350 GB/s), ולכן תוכנה טובה משתדלת לשמור את רוב התעבורה מקומית.',
+    n: 'NVLink לא מחבר מסכים. PCIe איטי, לא מהיר מדי. חיסכון בחשמל הוא לא הסיבה העיקרית.',
+    f: ['PCIe 5: 128 GB/s', 'NVLink 4: 900 GB/s', 'HBM: 3,350 GB/s'], p: 'basics' },
+
+  { l: 2, q: 'איזו יחידה מתרגמת את הכתובות שהתוכנית משתמשת בהן לכתובות זיכרון אמיתיות?',
+    o: ['Crossbar', 'Front end', 'MMU', 'HSHUB'], a: 2,
+    e: 'תוכנות עובדות עם כתובות וירטואליות. ה-MMU (Memory Management Unit) מוצא את המיקום האמיתי בעזרת page tables שהדרייבר הכין, וגם חוסם גישה שאסורה. נקודה חשובה ל-NVLink: רשומה ב-page table יכולה להצביע לזיכרון של GPU אחר. ככה טעינה רגילה יכולה להגיע ל-GPU שכן, בלי שהתוכנית תעשה משהו מיוחד.',
+    n: 'ה-crossbar מחבר בין יחידות, הוא לא מתרגם. ה-front end קורא פקודות. HSHUB מנתב תעבורה ל-NVLink, אבל רק אחרי שהכתובת כבר תורגמה.',
+    f: ['virtual → physical', 'page tables'], p: 'units' },
+  { l: 2, q: 'על מה רץ thread block?',
+    o: ['הוא מתפזר על כל ה-SM-ים', 'על SM אחד, ונשאר שם עד שהוא מסיים', 'על נתיב חישוב אחד', 'על ה-GSP'], a: 1,
+    e: 'יש התאמה בין רמות התוכנה לרמות החומרה. grid (הרצה אחת של kernel) רץ על כל ה-GPU. thread block רץ על SM אחד ונשאר שם עד הסוף, ולכן ה-threads שלו יכולים לחלוק shared memory ולהסתנכרן ביניהם. warp רץ על partition אחד של ה-SM, ו-thread רץ על נתיב אחד. block יכול להכיל עד 1,024 threads.',
+    n: 'block לא מתפזר בין SM-ים. נתיב אחד מריץ thread אחד, לא block. ה-GSP לא מריץ קוד משתמש.',
+    f: ['grid → GPU', 'block → SM', 'warp → partition', 'thread → lane'], p: 'units' },
+  { l: 2, q: 'דרך איזו יחידה עוברת כל גישה לזיכרון, גם מקומית וגם מ-GPU אחר?',
+    o: ['L2 cache', 'רק L1', 'Copy engine', 'PCIe'], a: 0,
+    e: 'ה-L2 הוא נקודת המפגש של כל השבב. מסלול טעינה רגיל: SM → L1 → crossbar → L2, ואם אין שם את הנתון, ממשיכים לבקר הזיכרון ול-HBM. אם הכתובת שייכת ל-GPU אחר, ה-L2 שולח אותה ל-HSHUB ומשם ל-NVLink. בצד השני, ה-GPU השכן עונה מה-L2 שלו או מה-HBM שלו.',
+    n: 'L1 שייך ל-SM אחד בלבד. Copy engine ו-PCIe לא נמצאים במסלול של טעינה רגילה מ-SM.',
+    f: ['SM → L1 → crossbar → L2 → HBM / HSHUB'], p: 'units' },
+  { l: 2, q: 'למה ה-warp scheduler מחזיק הרבה warps בו-זמנית?',
+    o: ['כדי שכאשר warp אחד מחכה לזיכרון, הוא יעבור מיד ל-warp אחר והנתיבים לא יעמדו', 'כדי לחסוך ברגיסטרים', 'כי כל warp רץ על נתיב אחד בלבד', 'כדי להאט את ה-SM ולחסוך חשמל'], a: 0,
+    e: 'גישה לזיכרון לוקחת זמן רב יחסית לחישוב, מאות מחזורי שעון. במקום לחכות, ה-scheduler עובר ל-warp אחר שמוכן לרוץ. המעבר כמעט לא עולה כלום, כי הרגיסטרים של כל ה-warps כבר נמצאים ב-register file. זו הסיבה שמריצים על GPU הרבה יותר threads ממספר הנתיבים: יש תמיד עבודה מוכנה.',
+    n: 'החזקת הרבה warps דווקא צורכת יותר רגיסטרים. warp רץ על 32 נתיבים, לא על אחד. המטרה היא לא להאט.',
+    f: ['latency hiding'], p: 'units' },
+  { l: 2, q: 'מה רוחב הפס הכולל של NVLink 4 ב-H100?',
+    o: ['64 GB/s', '128 GB/s', '900 GB/s', '3,350 GB/s'], a: 2,
+    e: 'ב-H100 יש 18 links של NVLink 4. כל link מעביר 25 GB/s בכל כיוון. החישוב: 18 × 25 × 2 כיוונים = 900 GB/s. כשמשווים מספרים כאלה, חשוב לבדוק אם הם לכיוון אחד או לשני הכיוונים יחד.',
+    n: '64 GB/s הוא PCIe Gen5 ×16 בכיוון אחד, ו-128 GB/s הוא PCIe בשני הכיוונים. 3,350 GB/s הוא רוחב הפס של HBM.',
+    f: ['18 links × 25 GB/s × 2 = 900 GB/s'], p: 'depth' },
+  { l: 2, q: 'איך link אחד של NVLink מעביר נתונים?',
+    o: ['בכיוון אחד בכל פעם, לסירוגין', 'כשני ערוצים חד-כיווניים שעובדים במקביל, אחד לכל כיוון', 'דרך PCIe', 'דרך ה-L2 של ה-CPU'], a: 1,
+    e: 'כל link הוא שני sub-links חד-כיווניים: אחד מ-GPU 0 ל-GPU 1, ואחד בחזרה. שניהם עובדים כל הזמן (full duplex). לכל sub-link יש כמה lanes (זוגות חוטים). ב-NVLink 4 יש 2 lanes בכל כיוון, כל אחד ב-100 Gb/s. כל flit מתפזר על כל ה-lanes של ה-sub-link שלו, כך שהם עובדים יחד כמו אפיק רחב אחד.',
+    n: 'אין צורך לסירוגין: לכל כיוון יש חוטים משלו. NVLink הוא קישור נפרד מ-PCIe ולא עובר דרך ה-CPU.',
+    f: ['full duplex', 'NVLink 4: 2 lanes × 100 Gb/s per direction'], p: 'depth' },
+  { l: 2, q: 'מה הבעיה בחיבור 8 GPU-ים ישירות זה לזה, בלי switch?',
+    o: ['אין בעיה, זה עובד בדיוק אותו דבר', 'כל GPU צריך לחלק את ה-links שלו בין כל השכנים, אז כל זוג מקבל רק חלק קטן מרוחב הפס', 'NVLink לא עובד בכלל בלי switch', 'PCIe חוסם את התעבורה'], a: 1,
+    e: 'ל-H100 יש 18 links. אם מחברים אותו ישירות לשבעה GPU-ים אחרים, צריך לחלק את 18 ה-links ביניהם, וכל זוג מקבל רק שניים או שלושה. עם NVSwitch, כל GPU מחבר את כל ה-links שלו למתגים, ואז כל זוג GPU-ים מקבל את מלוא 900 GB/s, עם קפיצה אחת דרך המתג.',
+    n: 'NVLink עובד גם בלי switch (למשל שני GPU-ים מחוברים ישירות). PCIe לא קשור לחיבור הזה.',
+    f: ['18 links / 7 peers', 'NVSwitch → any pair 900 GB/s'], p: 'basics' },
+  { l: 2, q: 'מה זה flit?',
+    o: ['שם של דגם GPU', 'יחידת הנתונים הבסיסית שהקישור בודק, ושולח שוב אם יש שגיאה', 'סוג של זיכרון', 'פקודה של CUDA'], a: 1,
+    e: 'flit (flow control unit) הוא יחידת הנתונים הבסיסית של הקישור. ב-NVLink 1, כפי ש-NVIDIA פרסמה ב-2016, flit הוא 128 ביטים. packet מורכב מ-header flit, אחריו flits אופציונליים (AE, BE), ואחריהם עד 16 data flits, כלומר 256 בתים. ה-header מחזיק CRC של 25 ביט, 20 ביט לשכבת ה-data link ו-83 ביט לשכבת ה-transaction. בדורות מאוחרים יותר הפורמט השתנה, ו-NVIDIA לא פרסמה אותו באותה רמת פירוט.',
+    n: 'flit הוא לא דגם, לא זיכרון ולא פקודה. זה מונח של פרוטוקולי קישור.',
+    f: ['NVLink 1: flit = 128 bit', 'up to 16 data flits = 256 B'], p: 'depth' },
+
+  { l: 3, q: 'איזו שכבה בפרוטוקול אחראית על CRC ועל שליחה חוזרת (replay)?',
+    o: ['Physical layer', 'Data link layer', 'Transaction layer', 'Application layer'], a: 1,
+    e: 'ל-NVLink שלוש שכבות. ה-Physical layer מעבירה ביטים על החוטים (SerDes, PAM4, training). ה-Data link layer הופכת חוט רועש לחוט שנראה בלי שגיאות: CRC מגלה שגיאות, מספרי sequence ו-ack מאשרים קבלה, replay buffer אצל השולח מאפשר שליחה חוזרת, ו-credits מונעים הצפה. ה-Transaction layer מטפלת בפעולות הזיכרון עצמן: read, write ו-atomic.',
+    n: 'ה-Physical לא בודק נכונות של נתונים. ה-Transaction מניח שהקישור כבר אמין. אין "Application layer" ב-NVLink.',
+    f: ['CRC · seq · ack · replay · credits'], p: 'depth' },
+  { l: 3, q: 'GPU 1 קיבל flit עם CRC שגוי. מה קורה?',
+    o: ['הדרייבר מקבל interrupt ושולח את הנתונים מחדש', 'הנתונים הפגומים עוברים לאפליקציה', 'GPU 1 זורק את ה-flit ואת מה שאחריו, ו-GPU 0 שולח אותם שוב מה-replay buffer, הכול בחומרה', 'הקישור נסגר מיד'], a: 2,
+    e: 'זה מטופל כולו בחומרה של שכבת ה-data link. המקבל זורק את ה-flit הפגום וגם את כל מה שהגיע אחריו, ושולח בקשת replay. השולח שומר עותק של כל flit שעדיין לא אושר, ושולח אותם מחדש לפי הסדר. המחיר: עיכוב של בערך סיבוב אחד הלוך-חזור. תוכנה לא מעורבת. רק אם השגיאות נמשכות ועוברות סף, הקישור עובר להתאוששות, ואז התוכנה יודעת על זה.',
+    n: 'הדרייבר לא מעורב בשגיאה בודדת. נתונים פגומים לא מגיעים לאפליקציה, כי ה-CRC עוצר אותם. שגיאה אחת לא סוגרת את הקישור.',
+    f: ['replay buffer @ sender', 'cost ≈ 1 round trip'], p: 'bench' },
+  { l: 3, q: 'ל-GPU 0 נגמרו ה-credits. מה זה אומר?',
+    o: ['הקישור התקלקל', 'ה-buffer של המקבל מלא, ולכן השולח מחכה עד שיחזור אליו credit', 'צריך לאתחל את ה-GPU', 'התעבורה עוברת ל-PCIe'], a: 1,
+    e: 'credit מייצג מקום פנוי ב-buffer של המקבל. השולח מוציא credit אחד על כל flit, והמקבל מחזיר credit כשהוא מפנה מקום. כשאין credits, השולח מחכה. זה מונע הצפה ואובדן נתונים. נקודה חשובה לתכנון: ה-buffer צריך להיות גדול מספיק כדי לכסות רוחב פס × זמן הלוך-חזור. אחרת הקישור ייעצר גם כשהוא תקין לגמרי.',
+    n: 'חוסר ב-credits הוא מצב רגיל של בקרת זרימה, לא תקלה. אין צורך באתחול, והתעבורה לא עוברת ל-PCIe.',
+    f: ['buffer ≥ bandwidth × round trip'], p: 'bench' },
+  { l: 3, q: 'למה בדורות חדשים של NVLink יש פחות lanes בכל link (8 ב-NVLink 1, ו-2 ב-NVLink 4)?',
+    o: ['כי כל lane נהיה מהיר הרבה יותר (100–200 Gb/s עם PAM4), אז צריך פחות חוטים לאותו רוחב פס', 'כי NVIDIA הורידה את רוחב הפס', 'כי כבר לא צריך lanes', 'כי עברו ל-PCIe'], a: 0,
+    e: 'המהירות של כל lane עלתה: NVLink 1: 8 × 20 Gb/s. NVLink 2: 8 × 25. NVLink 3: 4 × 50. NVLink 4: 2 × 100. NVLink 5: 2 × 200. PAM4 מעביר 2 ביטים בכל סמל במקום ביט אחד. כך link אחד נשאר 25 GB/s בכל כיוון עם פחות חוטים, ו-NVLink 5 מכפיל ל-50 GB/s. החיסכון בחוטים מאפשר להכניס יותר links לכל GPU: מ-4 ב-P100 ל-18 ב-H100.',
+    n: 'רוחב הפס הכולל דווקא עלה בכל דור. lanes עדיין קיימים. NVLink לא עבר ל-PCIe.',
+    f: ['8×20 → 8×25 → 4×50 → 2×100 → 2×200 Gb/s', 'links: 4 → 6 → 12 → 18 → 18'], p: 'bench' },
+  { l: 3, q: 'SM מבצע load לכתובת מסוימת. מה קובע אם הנתונים יבואו מה-HBM המקומי או מ-GPU אחר דרך NVLink?',
+    o: ['המתכנת חייב לכתוב פקודה מיוחדת לגישה מרוחקת', 'ה-page table (דרך ה-MMU): הרשומה של הכתובת מצביעה ל-GPU אחר', 'ה-Copy engine מחליט', 'Fabric Manager מחליט בכל גישה'], a: 1,
+    e: 'זו אותה הוראת load בדיוק. הדרייבר מיפה מראש את הזיכרון של ה-GPU השכן לתוך מרחב הכתובות. כשה-MMU מתרגם את הכתובת, הרשומה ב-page table אומרת שהיא שייכת ל-GPU אחר. ה-L2 וה-HSHUB שולחים את הבקשה החוצה ב-NVLink. לכן אומרים ש-NVLink הוא "memory semantic": GPU שכן נראה כמו עוד זיכרון.',
+    n: 'אין פקודה מיוחדת. Copy engine הוא מסלול נפרד להעתקות גדולות. Fabric Manager מגדיר ניתוב פעם אחת בהפעלה, לא בכל גישה.',
+    f: ['same ld instruction', 'page table → peer'], p: 'depth' },
+  { l: 3, q: 'כשנתונים עוברים ב-NVLink (למשל load מ-GPU אחר), איזה קוד רץ על כל packet?',
+    o: ['קוד ב-GSP', 'קוד ב-MINION', 'הדרייבר ב-CPU', 'שום קוד, רק חומרה'], a: 3,
+    e: 'המסלול SM → L2 → HSHUB → TL → DL → PHY הוא כולו חומרה. אם קוד היה רץ על כל packet, הקישור היה איטי פי אלפים. התפקיד של הקוד הוא להקים את הקישור, להגדיר אותו, ולהגיב לשגיאות ולשינויי צריכת חשמל. זה מה שעושה מהנדס/ת קושחה בצד ה-NVLink.',
+    n: 'GSP, MINION והדרייבר כולם מריצים קוד NVLink, אבל רק בהקמה ובטיפול בתקלות, אף פעם לא על כל packet.',
+    f: ['data path = hardware only'], p: 'where' },
+  { l: 3, q: 'מה זה MINION?',
+    o: ['שם של שבב NVSwitch', 'בקר Falcon קטן בתוך כל בלוק IOCTRL, שמריץ microcode להקמה ואימון של הקישור', 'חלק מה-L2', 'כלי של nvidia-smi'], a: 1,
+    e: 'כל בלוק קישור (IOCTRL) ב-GPU וב-NVSwitch מכיל MINION: מיקרו-בקר מסוג Falcon. הוא מריץ microcode שמבצע פקודות נמוכות: הדלקת ה-PHY, הפעלת ה-lanes והפעלת שכבת ה-data link. זה מופיע בקוד הפתוח של NVIDIA: kernel_minion_gv100.c בצד ה-GPU ו-minion_lr10.c בצד ה-NVSwitch.',
+    n: 'NVSwitch הוא שבב שלם, ו-MINION הוא בקר קטן בתוכו (וגם בתוך ה-GPU). הוא לא חלק מה-L2 ולא כלי תוכנה.',
+    f: ['MINION = Falcon', 'one per IOCTRL'], p: 'where' },
+  { l: 3, q: 'מה הסדר הנכון של מצבי הקישור בהקמה (bring-up)?',
+    o: ['HS → SAFE → OFF', 'OFF → SAFE → HS', 'SAFE → OFF → HS', 'OFF → HS → SAFE'], a: 1,
+    e: 'OFF: הקישור כבוי. SAFE: מצב איטי שבו מבצעים training, הגדרות, וגילוי מי מחובר בצד השני. HS (High Speed): מצב מהיר שמעביר תעבורה. אם יש יותר מדי שגיאות, הקישור חוזר ל-SAFE לאימון מחדש. השמות האלה מופיעים בקובץ nvlink.h בקוד הפתוח של NVIDIA, יחד עם מצבים נוספים כמו SLEEP.',
+    n: 'אי אפשר לעבור ל-HS לפני training ב-SAFE, ולכן כל סדר אחר לא נכון.',
+    f: ['OFF → SAFE → HS', 'errors → back to SAFE'], p: 'depth' },
+  { l: 3, q: 'במערכת עם GSP, מי מתכנת בפועל את ה-HSHUB?',
+    o: ['ה-SM', 'GSP-RM, אחרי שהדרייבר ב-CPU שולח לו RPC', 'Fabric Manager ישירות', 'ה-BIOS של המחשב'], a: 1,
+    e: 'הדרייבר מחולק לשני חלקים: חלק שרץ ב-CPU, ו-GSP-RM שרץ על ה-GSP. בקובץ kernel_nvlink.c בקוד הפתוח, הצד של ה-CPU קורא ל-knvlinkExecGspRmRpc, וההערה בקוד אומרת שזה RPC ל-GSP-RM כדי לתכנת את רגיסטרי ה-HSHUB, CONNECTION_CFG ו-LTCS. כלומר ה-CPU מחליט, וה-GSP מבצע על החומרה.',
+    n: 'ה-SM מריץ קוד משתמש. Fabric Manager מגדיר ניתוב ב-NVSwitch, לא את ה-HSHUB של ה-GPU. ה-BIOS לא מתכנת NVLink.',
+    f: ['knvlinkExecGspRmRpc', 'CPU-RM ↔ GSP-RM'], p: 'where' },
+  { l: 3, q: 'ב-HGX H100 יש 8 GPU-ים ו-4 שבבי NVSwitch. איך כל GPU מחלק את 18 ה-links שלו?',
+    o: ['כל 18 ה-links לשבב אחד', '5, 4, 4, 5: חלק לכל אחד מארבעת השבבים', '6, 6, 6, 0', '2 links לכל GPU אחר'], a: 1,
+    e: '5 + 4 + 4 + 5 = 18. כל GPU מחובר לכל ארבעת המתגים, ולכל מתג (NVSwitch מהדור השלישי) יש 64 פורטים. ככה כל זוג GPU-ים מקבל 900 GB/s מלאים, עם קפיצה אחת דרך מתג. Fabric Manager (תוכנה במחשב המארח) מגדיר את הניתוב במתגים. החלוקה 5/4/4/5 מגיעה ממקור חיצוני ולא ממסמך של NVIDIA.',
+    n: 'כל ה-links למתג אחד היה יוצר צוואר בקבוק. 6/6/6/0 משאיר מתג לא מחובר. חיבור ישיר בלי מתגים זה מבנה אחר.',
+    f: ['5+4+4+5 = 18', 'NVSwitch: 64 ports'], p: 'depth' },
+  { l: 3, q: 'שגיאות בקישור ממשיכות גם אחרי replay ועוברות סף. מה רואים בלוגים של הדרייבר?',
+    o: ['Xid 74, שגיאת NVLink', 'Xid 13', 'שום דבר', 'תמיד kernel panic'], a: 0,
+    e: 'כש-replay לא מספיק, הקישור עובר להתאוששות: אימון מחדש, ואם זה לא עוזר, הקישור יורד. הדרייבר מדווח על זה כ-Xid 74 (NVLink Error). אפשר לקרוא את מוני השגיאות עם nvidia-smi nvlink -e. העבודה של הקושחה כאן: לקבוע את הספים, לבחור מתי לאמן מחדש ומתי להוריד את הקישור, ולדווח למעלה.',
+    n: 'Xid 13 הוא שגיאת מנוע גרפי (Graphics Engine Exception), לא NVLink. תקלה כזו כן נרשמת בלוגים. kernel panic לא קורה בגלל שגיאת קישור.',
+    f: ['Xid 74', 'nvidia-smi nvlink -e'], p: 'depth' },
+  { l: 3, q: 'מה עושה NVLink SHARP?',
+    o: ['מצפין את הקישור', 'ה-NVSwitch עצמו סוכם את הנתונים ב-all-reduce ושולח את התוצאה חזרה לכל ה-GPU-ים', 'מגביר את המהירות של כל lane', 'מחליף את ה-L2'], a: 1,
+    e: 'all-reduce היא פעולה נפוצה באימון AI: לחבר מערך בין כל ה-GPU-ים, כך שכולם יקבלו את הסכום. בלי SHARP, ה-GPU-ים מחליפים סכומים חלקיים בכמה סבבים. עם SHARP, כל GPU שולח את החלק שלו פעם אחת למתג, המתג מחבר, ושולח את הסכום חזרה לכולם. כך עוברים פחות נתונים בכל link.',
+    n: 'SHARP לא קשור להצפנה, למהירות ה-lanes או ל-L2. הוא מעביר חישוב לתוך המתג.',
+    f: ['in-network reduction'], p: 'depth' },
+];
+
+const LETTERS = ['א', 'ב', 'ג', 'ד'];
+const LEVEL_NAME = { 1: 'קל', 2: 'בינוני', 3: 'עמוק' };
+const LEVEL_COLOR = { 1: 'var(--ok)', 2: 'var(--warn)', 3: 'var(--risk)' };
+const KEY = 'gpu-nvlink-quiz-he-v1';
+let answers = {};
+try { answers = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { answers = {}; }
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(answers)); } catch (e) {} };
+
+// Where the right answer sits for each question: a fixed, balanced pattern (7 per letter), the same on every load.
+const TARGET = 'גאדבאגדבדגאבגדבאבאגדאדבגדגבא'.split('').map((c) => 'אבגד'.indexOf(c));
+const PERM = Q.map((item, i) => {
+  const others = [0, 1, 2, 3].filter((k) => k !== item.a);
+  others.splice(TARGET[i], 0, item.a);
+  return others;
+});
+const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+// Hebrew text with English words and numbers: isolate each Latin/number run so it keeps its own order inside the RTL line.
+const bidi = (s) => esc(s).replace(/\(?[A-Za-z0-9][A-Za-z0-9 .,×\/+\-–→()%:]*[A-Za-z0-9)%]|\(?[A-Za-z0-9]\)?/g, (m) => {
+  let pre = '', post = '';
+  if (m.startsWith('(') && !m.includes(')')) { pre = '('; m = m.slice(1); }
+  if (m.endsWith(')') && !m.includes('(')) { post = ')'; m = m.slice(0, -1); }
+  return `${pre}<bdi dir="ltr">${m}</bdi>${post}`;
+});
+const el = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; };
+
+function render() {
+  const counters = { 1: 0, 2: 0, 3: 0 };
+  Q.forEach((item, i) => {
+    counters[item.l]++;
+    const host = document.querySelector(`.qs[data-level="${item.l}"]`);
+    const card = el(`<article class="q" id="q${i + 1}">
+      <div class="q-top"><span class="q-num">${i + 1}/${Q.length}</span><span class="chip" style="color:${LEVEL_COLOR[item.l]}">${LEVEL_NAME[item.l]}</span></div>
+      <h3>${bidi(item.q)}</h3>
+      <ul class="opts">${PERM[i].map((orig, k) => `<li><button class="opt" type="button" data-k="${orig}"><span class="let">${LETTERS[k]}</span><span>${bidi(item.o[orig])}</span><span class="mark" aria-hidden="true"></span></button></li>`).join('')}</ul>
+      <div class="ans" hidden>
+        <p class="verdict"></p>
+        <h4>הסבר מפורט</h4>
+        <p>${bidi(item.e)}</p>
+        <div class="facts">${item.f.map((x) => `<span>${esc(x)}</span>`).join('')}</div>
+        <h4>למה לא האחרות</h4>
+        <p class="why-not">${bidi(item.n)}</p>
+        <p class="more">ללמוד עוד: <a href="${PAGES[item.p][1]}" target="_blank" rel="noopener"><span class="ltr">${PAGES[item.p][0]}</span></a></p>
+      </div>
+    </article>`);
+    host.appendChild(card);
+    card.querySelectorAll('.opt').forEach((b) => b.addEventListener('click', () => { answers[i] = +b.dataset.k; save(); paint(i); score(); }));
+    paint(i);
+  });
+  score();
+}
+
+function paint(i) {
+  const item = Q[i], card = document.getElementById('q' + (i + 1));
+  const chosen = answers[i];
+  const done = chosen !== undefined;
+  card.querySelectorAll('.opt').forEach((b, pos) => {
+    const k = +b.dataset.k;
+    b.disabled = done;
+    b.classList.toggle('is-right', done && k === item.a);
+    b.classList.toggle('is-wrong', done && k === chosen && k !== item.a);
+    b.classList.toggle('is-dim', done && k !== item.a && k !== chosen);
+    b.querySelector('.mark').textContent = done && k === item.a ? '✓' : done && k === chosen ? '✕' : '';
+    b.setAttribute('aria-label', LETTERS[pos] + '. ' + item.o[k] + (done && k === item.a ? ' (נכון)' : done && k === chosen ? ' (הבחירה, לא נכון)' : ''));
+  });
+  const ans = card.querySelector('.ans');
+  ans.hidden = !done;
+  if (done) {
+    const v = ans.querySelector('.verdict');
+    v.className = 'verdict ' + (chosen === item.a ? 'ok' : 'no');
+    v.textContent = chosen === item.a ? '✓ נכון!' : `✕ לא נכון. התשובה הנכונה היא ${LETTERS[PERM[i].indexOf(item.a)]}.`;
+  }
+}
+
+function score() {
+  const ids = Object.keys(answers).map(Number);
+  const right = ids.filter((i) => answers[i] === Q[i].a).length;
+  document.getElementById('sc-right').textContent = right;
+  document.getElementById('sc-done').textContent = ids.length;
+  document.getElementById('sc-ans').textContent = ids.length;
+  document.getElementById('sc-total').textContent = Q.length;
+  document.getElementById('sc-bar').style.width = (ids.length / Q.length * 100) + '%';
+  [1, 2, 3].forEach((l) => {
+    const qs = Q.map((q, i) => i).filter((i) => Q[i].l === l);
+    const a = qs.filter((i) => answers[i] !== undefined), r = a.filter((i) => answers[i] === Q[i].a);
+    document.querySelector(`[data-level-score="${l}"]`).innerHTML = `בשלב הזה: <b>${r.length}</b> נכונות מתוך <b>${a.length}</b> שנענו (<b>${qs.length}</b> שאלות)`;
+  });
+  const done = document.getElementById('done');
+  done.hidden = ids.length < Q.length;
+  if (ids.length === Q.length) {
+    const pct = Math.round(right / Q.length * 100);
+    document.getElementById('done-title').textContent = `סיום: ${right} מתוך ${Q.length} (${pct}%)`;
+    document.getElementById('done-text').textContent = pct >= 80
+      ? 'מצוין. הבסיס יציב. השלב הבא: אתחול ה-GPU וה-GSP, או אימון הקישור (link training).'
+      : 'כדאי לחזור על השאלות שסומנו ב-✕ ולקרוא את הדף שמקושר בהן, ואז ללחוץ על "להתחיל מחדש".';
+  }
+}
+
+document.getElementById('reset').addEventListener('click', () => {
+  answers = {}; save();
+  Q.forEach((_, i) => paint(i)); score();
+  window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+});
+render();
+</script>
