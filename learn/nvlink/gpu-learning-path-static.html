@@ -1,0 +1,1244 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>מסלול לימוד GPU ו-NVLink</title>
+<style>
+  /* Layout: Paper register, RTL, fully offline (system fonts only). One reading column: map, nine chapters of steps, glossary; a bottom sheet shows any component without leaving the step. */
+  :root {
+    color-scheme: light;
+    --bg: #f7f7f4; --surface: #ffffff; --border: #e3e3dc; --border-bright: #8e8e8a;
+    --text: #17191c; --text-dim: #575c63; --accent: #2c4cd0; --accent-dim: rgba(44,76,208,.10);
+    --ok: #1d7443; --ok-dim: rgba(29,116,67,.10); --risk: #b3301d; --risk-dim: rgba(179,48,29,.09);
+    --node-top: #ffffff; --lift: rgb(23 25 28 / .10); --shade: rgb(23 25 28 / .35);
+    --font: system-ui, -apple-system, "Segoe UI", Arial, "Noto Sans Hebrew", sans-serif;
+    --mono: ui-monospace, Menlo, Consolas, "Courier New", monospace;
+    --s-1: .25rem; --s-2: .5rem; --s-3: .75rem; --s-4: 1rem; --s-5: 1.5rem; --s-6: 2rem; --s-7: 3rem; --s-8: 4.5rem;
+    --r-1: 4px; --r-2: 10px; --ease: cubic-bezier(.16,1,.3,1);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #111316; --surface: #181b1f; --border: #262a30; --border-bright: #62676c;
+      --text: #e8e8e3; --text-dim: #a3a9b1; --accent: #93a6ff; --accent-dim: rgba(147,166,255,.13);
+      --ok: #6cc492; --ok-dim: rgba(108,196,146,.12); --risk: #f0806b; --risk-dim: rgba(240,128,107,.12);
+      --node-top: #20242a; --lift: rgb(0 0 0 / .45); --shade: rgb(0 0 0 / .6);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #111316; --surface: #181b1f; --border: #262a30; --border-bright: #62676c;
+    --text: #e8e8e3; --text-dim: #a3a9b1; --accent: #93a6ff; --accent-dim: rgba(147,166,255,.13);
+    --ok: #6cc492; --ok-dim: rgba(108,196,146,.12); --risk: #f0806b; --risk-dim: rgba(240,128,107,.12);
+    --node-top: #20242a; --lift: rgb(0 0 0 / .45); --shade: rgb(0 0 0 / .6);
+    color-scheme: dark;
+  }
+  html { font-size: 18px; scroll-padding-top: 4rem; }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 400 1rem/1.65 var(--font); -webkit-font-smoothing: antialiased; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  a { color: var(--accent); text-underline-offset: .2em; }
+  bdi { unicode-bidi: isolate; }
+  .mono { font: 500 .85em var(--mono); direction: ltr; unicode-bidi: isolate; }
+
+  .bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: color-mix(in srgb, var(--bg) 94%, transparent); border-bottom: 1px solid var(--border); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .bar-in { max-width: 48rem; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-4); padding-block: var(--s-2); }
+  .bar a.nav { font-size: .85rem; font-weight: 600; color: var(--text-dim); text-decoration: none; }
+  .bar a.nav:hover { color: var(--accent); }
+  .prog { margin-inline-start: auto; display: flex; align-items: center; gap: var(--s-3); font-size: .85rem; color: var(--text-dim); }
+  .prog b { color: var(--text); font-variant-numeric: tabular-nums; }
+  .meter { width: 6rem; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .meter i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .4s var(--ease); }
+  button { font: 600 .85rem var(--font); color: var(--text); background: var(--surface); border: 1px solid var(--border-bright); border-radius: var(--r-1); padding: var(--s-1) var(--s-3); cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.quiet { background: none; color: var(--text-dim); font-weight: 600; }
+
+  main { max-width: 48rem; margin: 0 auto; padding-block: var(--s-7) var(--s-8); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-7); }
+  main > *, section, figure, header, .step, .entry { min-width: 0; }
+  header { display: grid; gap: var(--s-3); }
+  .kicker { font: 700 .8rem var(--font); color: var(--accent); }
+  h1 { font: 800 clamp(2rem, 6vw, 3rem)/1.12 var(--font); letter-spacing: -.01em; text-wrap: balance; }
+  .lead { font-size: 1.15rem; color: var(--text-dim); max-width: 40ch; }
+  .lead b { color: var(--text); }
+  .how { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: var(--s-3); margin-top: var(--s-2); }
+  .how div { border-top: 2px solid var(--border); padding-top: var(--s-2); font-size: .95rem; color: var(--text-dim); }
+  .how b { display: block; color: var(--text); }
+
+  h2 { font: 800 1.6rem/1.2 var(--font); text-wrap: balance; }
+  .sec { display: grid; gap: var(--s-4); scroll-margin-top: 4rem; }
+  .sec-head { display: grid; gap: var(--s-1); border-top: 1px solid var(--border); padding-top: var(--s-4); }
+  .sec-head .num { font: 700 .8rem var(--font); color: var(--accent); }
+  .sec-head p { color: var(--text-dim); }
+  .chips { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+  a.chip { display: inline-flex; gap: var(--s-1); align-items: baseline; font-size: .85rem; text-decoration: none; color: var(--text); background: var(--surface); border: 1px solid var(--border-bright); border-radius: 999px; padding: 1px var(--s-3); }
+  a.chip:hover { border-color: var(--accent); color: var(--accent); }
+  .chip-label { font-size: .8rem; color: var(--text-dim); font-weight: 600; }
+
+  .frame { background: radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--text) 13%, transparent) 1px, transparent 1.5px) 0 0 / 20px 20px, var(--bg); border: 1px solid var(--border); border-radius: var(--r-2); padding: var(--s-4); overflow-x: auto; }
+  .map { width: 100%; min-width: 680px; height: auto; display: block; direction: ltr; font: 600 16px var(--font); }
+  .map .sh { fill: var(--node-top); stroke: var(--border-bright); stroke-width: 1.5; filter: drop-shadow(0 4px 10px var(--lift)); transition: stroke .15s var(--ease), fill .15s var(--ease); }
+  .map a:hover .sh, .map a:focus-visible .sh { stroke: var(--accent); fill: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+  .map a.key .sh { stroke: var(--accent); stroke-width: 2; }
+  .map text { fill: var(--text); text-anchor: middle; dominant-baseline: central; }
+  .map .sub { fill: var(--text-dim); font: 500 13px var(--mono); }
+  .map .bd { fill: none; stroke: var(--border-bright); stroke-dasharray: 4 4; }
+  .map .bdl { fill: var(--text-dim); font: 600 13px var(--mono); text-anchor: start; letter-spacing: .05em; }
+  .map .ln { fill: none; stroke: var(--text-dim); stroke-width: 1.5; }
+  figcaption { color: var(--text-dim); margin-top: var(--s-2); }
+
+  .step { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-2); padding: var(--s-5); display: grid; gap: var(--s-4); scroll-margin-top: 4.5rem; }
+  .step-top { display: flex; align-items: center; gap: var(--s-2); font-size: .85rem; color: var(--text-dim); }
+  .step-num { font: 700 .8rem var(--mono); color: var(--accent); direction: ltr; }
+  .step h3 { font: 700 1.15rem/1.45 var(--font); text-wrap: pretty; }
+  .opts { list-style: none; padding: 0; display: grid; gap: var(--s-2); }
+  .opt { width: 100%; text-align: start; display: grid; grid-template-columns: 2rem minmax(0, 1fr) 1.4rem; align-items: center; gap: var(--s-2); font: 400 1rem/1.45 var(--font); color: var(--text); background: var(--bg); border: 1px solid var(--border-bright); border-radius: var(--r-1); padding: var(--s-2) var(--s-3); }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-dim); }
+  .opt:disabled { cursor: default; }
+  .opt .let { font-weight: 700; color: var(--text-dim); width: 1.6rem; height: 1.6rem; border: 1px solid var(--border-bright); border-radius: 50%; display: grid; place-items: center; font-size: .9rem; }
+  .opt .mark { font-weight: 800; text-align: center; }
+  .opt.is-right { border-color: var(--ok); background: var(--ok-dim); } .opt.is-right .let, .opt.is-right .mark { color: var(--ok); border-color: var(--ok); }
+  .opt.is-wrong { border-color: var(--risk); background: var(--risk-dim); } .opt.is-wrong .let, .opt.is-wrong .mark { color: var(--risk); border-color: var(--risk); }
+  .opt.is-dim { opacity: .62; }
+  .reveal { justify-self: start; }
+  .ans { display: grid; gap: var(--s-3); border-top: 1px solid var(--border); padding-top: var(--s-4); }
+  .ans[hidden] { display: none !important; }
+  .verdict { font-weight: 800; }
+  .verdict.ok { color: var(--ok); } .verdict.no { color: var(--risk); } .verdict.seen { color: var(--accent); }
+  .ans h4 { font: 800 .9rem var(--font); color: var(--text-dim); }
+  .ans p { max-width: 64ch; }
+  .ans .why-not { color: var(--text-dim); }
+  a.term { color: var(--text); text-decoration: underline dotted var(--accent) 2px; text-underline-offset: .25em; border-radius: 3px; }
+  a.term:hover { background: var(--accent-dim); color: var(--accent); }
+  .review { display: grid; gap: var(--s-2); }
+  .review a.chip { border-radius: var(--r-1); flex-direction: column; align-items: flex-start; max-width: 100%; padding: var(--s-1) var(--s-3); }
+  .review a.chip small { color: var(--text-dim); font-size: .8rem; }
+  .next { justify-self: start; font-size: .95rem; }
+
+  .gloss-area { display: grid; gap: var(--s-3); }
+  .gloss-area h3 { font: 800 1.15rem var(--font); margin-top: var(--s-4); }
+  .entry { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-2); padding: var(--s-4); display: grid; gap: var(--s-2); scroll-margin-top: 4.5rem; }
+  .entry:target { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+  .entry-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-1) var(--s-3); }
+  .entry-head b { font: 800 1.15rem var(--font); }
+  .entry-head span { color: var(--text-dim); font-size: .9rem; }
+  dl.fields { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--s-1) var(--s-3); }
+  dl.fields dt { font-weight: 700; color: var(--text-dim); font-size: .9rem; }
+  dl.fields dd { margin: 0; }
+  @media (max-width: 520px) { dl.fields { grid-template-columns: minmax(0, 1fr); } dl.fields dd { margin-bottom: var(--s-2); } }
+  .facts { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+  .facts span { font: 500 .8rem var(--mono); direction: ltr; unicode-bidi: isolate; background: var(--accent-dim); border-radius: var(--r-1); padding: 1px var(--s-2); }
+  .seen-in { font-size: .85rem; color: var(--text-dim); }
+
+  .sheet-shade { position: fixed; inset: 0; background: var(--shade); z-index: 20; }
+  .sheet { position: fixed; inset: auto 0 0 0; z-index: 21; max-height: 72vh; overflow-y: auto; background: var(--surface); border-top: 1px solid var(--border-bright); border-radius: var(--r-2) var(--r-2) 0 0; box-shadow: 0 -10px 30px var(--lift); padding: var(--s-4) max(16px, env(safe-area-inset-right, 0px)) calc(var(--s-5) + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+  .sheet[hidden], .sheet-shade[hidden] { display: none; }
+  .sheet-in { max-width: 48rem; margin: 0 auto; display: grid; gap: var(--s-3); }
+  .sheet-tools { display: flex; gap: var(--s-2); justify-content: space-between; }
+  @media (max-width: 560px) { .bar .meter, .bar #reset { display: none; } .bar-in { gap: var(--s-1) var(--s-3); } .bar a.nav { font-size: .8rem; } }
+  .end { display: flex; gap: var(--s-3); align-items: center; color: var(--text-dim); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+  .opts.static li { display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: var(--s-2); align-items: center; background: var(--bg); border: 1px solid var(--border-bright); border-radius: var(--r-1); padding: var(--s-2) var(--s-3); }
+  .opts.static .let { font-weight: 700; color: var(--text-dim); width: 1.6rem; height: 1.6rem; border: 1px solid var(--border-bright); border-radius: 50%; display: grid; place-items: center; font-size: .9rem; }
+  details.ans { border-top: 1px solid var(--border); padding-top: var(--s-3); }
+  details.ans > summary { cursor: pointer; font-weight: 800; color: var(--accent); padding: var(--s-2) 0; list-style: none; }
+  details.ans > summary::-webkit-details-marker { display: none; }
+  details.ans > summary::before { content: '▸ '; } details.ans[open] > summary::before { content: '▾ '; }
+  details.ans[open] { display: grid; gap: var(--s-3); }
+  .right-ans { font-weight: 800; color: var(--ok); }
+  .toc { display: grid; gap: var(--s-1); list-style: none; padding: 0; }
+  .back { font-size: .85rem; }
+  @page { size: 105mm 185mm; margin: 7mm 6mm; }
+  @media print {
+    html { font-size: 9.5pt; }
+    .step { padding: 8pt; gap: 6pt; }
+    .bar, .print-hide { display: none !important; }
+    main { padding: 0; gap: 18pt; }
+    .frame { overflow: visible; } .map { min-width: 0; }
+    .entry { break-inside: avoid; } .step h3, .opts.static { break-inside: avoid; }
+    .step { border: 0; padding: 0; }
+    .qpage, .apage { break-before: page; }
+    .sec > .qpage:first-of-type { break-before: auto; }
+    .step-q-hint { display: block !important; }
+    .sec { break-before: page; }
+    #intro, #map { break-before: auto; }
+    a.term { text-decoration: underline dotted; }
+  }</style>
+</head>
+<body>
+<div dir="rtl" lang="he">
+  <div class="bar"><div class="bar-in"><a class="nav" href="#intro">התחלה</a><a class="nav" href="#map">מפת המערכת</a><a class="nav" href="#ch1">המסלול</a><a class="nav" href="#glossary">מילון רכיבים</a></div></div>
+  <main>
+    <header id="intro">
+      <p class="kicker">מסלול לימוד · GPU ו-NVLink · גרסה ללא אינטרנט</p>
+      <h1>להכיר את כל הרכיבים החשובים של ה-GPU, צעד אחר צעד</h1>
+      <p class="lead">9 פרקים, 43 שלבים ו-60 רכיבים. <b>כל שלב הוא שאלה אמריקאית ואחריה הסבר מפורט.</b></p>
+      <p>לנסות לענות, ואז ללחוץ על "להציג תשובה והסבר". כל מונח מסומן הוא קישור להגדרה שלו במילון בסוף, ושם יש קישורים חזרה לשלבים.</p>
+      <ol class="toc"><li><a href="#ch1">פרק 1: התמונה הגדולה</a></li><li><a href="#ch2">פרק 2: איך עבודה נכנסת ל-<bdi dir="ltr">GPU</bdi></a></li><li><a href="#ch3">פרק 3: החישוב: מ-<bdi dir="ltr">GPC</bdi> ועד נתיב</a></li><li><a href="#ch4">פרק 4: הזיכרון</a></li><li><a href="#ch5">פרק 5: הקושחה על ה-<bdi dir="ltr">GPU</bdi></a></li><li><a href="#ch6">פרק 6: <bdi dir="ltr">NVLink</bdi>: התמונה</a></li><li><a href="#ch7">פרק 7: בתוך הקישור: הפרוטוקול</a></li><li><a href="#ch8">פרק 8: הקמה וניהול: איפה הקוד רץ</a></li><li><a href="#ch9">פרק 9: <bdi dir="ltr">NVSwitch</bdi> ומערכות גדולות</a></li><li><a href="#glossary">מילון הרכיבים</a></li></ol>
+    </header>
+    <section class="sec" id="map"><div class="sec-head"><span class="num">לפני שמתחילים</span><h2>מפת המערכת: כל בלוק הוא קישור להגדרה שלו</h2></div>
+      <figure><div class="frame"><svg class="map" viewBox="0 0 960 540" role="img" aria-label="מפה לוגית של GPU: בקרה למעלה, חישוב באמצע, זיכרון וקישורים למטה. כל בלוק פותח את ההגדרה שלו.">
+            <rect class="bd" x="14" y="56" width="932" height="420" rx="6"/><text class="bdl" x="26" y="48">ONE GPU (H100) · LOGICAL MAP</text>
+            <a href="#g-host" data-term="host"><rect class="sh" x="40" y="4" width="180" height="40" rx="6"/><text x="130" y="24">CPU host + driver</text></a>
+            <path class="ln" d="M95 44V82"/>
+            <a href="#g-nvswitch" data-term="nvswitch"><rect class="sh" x="560" y="494" width="200" height="40" rx="6"/><text x="660" y="514">NVSwitch / other GPUs</text></a>
+            <path class="ln" d="M660 470V494"/>
+
+            <a href="#g-pcie" data-term="pcie"><rect class="sh" x="40" y="82" width="110" height="56" rx="6"/><text x="95" y="110">PCIe</text></a>
+            <a href="#g-frontend" data-term="frontend"><rect class="sh" x="162" y="82" width="138" height="56" rx="6"/><text x="231" y="110">Front end</text></a>
+            <a href="#g-copyeng" data-term="copyeng"><rect class="sh" x="312" y="82" width="160" height="56" rx="6"/><text x="392" y="110">Copy engines</text></a>
+            <a href="#g-gsp" data-term="gsp" class="key"><rect class="sh" x="484" y="82" width="100" height="56" rx="6"/><text x="534" y="102">GSP</text><text class="sub" x="534" y="122">firmware</text></a>
+            <a href="#g-pmu" data-term="pmu"><rect class="sh" x="596" y="82" width="100" height="56" rx="6"/><text x="646" y="110">PMU</text></a>
+            <a href="#g-sec2" data-term="sec2"><rect class="sh" x="708" y="82" width="100" height="56" rx="6"/><text x="758" y="110">SEC2</text></a>
+            <a href="#g-fsp" data-term="fsp"><rect class="sh" x="820" y="82" width="100" height="56" rx="6"/><text x="870" y="110">FSP</text></a>
+
+            <a href="#g-gpc" data-term="gpc"><rect class="sh" x="40" y="158" width="100" height="68" rx="6"/><text x="90" y="182">GPC</text><text class="sub" x="90" y="206">9 TPC</text></a>
+            <a href="#g-gpc" data-term="gpc"><rect class="sh" x="150" y="158" width="100" height="68" rx="6"/><text x="200" y="182">GPC</text><text class="sub" x="200" y="206">9 TPC</text></a>
+            <a href="#g-gpc" data-term="gpc"><rect class="sh" x="260" y="158" width="100" height="68" rx="6"/><text x="310" y="182">GPC</text><text class="sub" x="310" y="206">9 TPC</text></a>
+            <a href="#g-tpc" data-term="tpc"><rect class="sh" x="370" y="158" width="100" height="68" rx="6"/><text x="420" y="182">TPC</text><text class="sub" x="420" y="206">2 SM</text></a>
+            <a href="#g-sm" data-term="sm" class="key"><rect class="sh" x="480" y="158" width="100" height="68" rx="6"/><text x="530" y="182">SM</text><text class="sub" x="530" y="206">×132</text></a>
+            <a href="#g-partition" data-term="partition"><rect class="sh" x="590" y="158" width="110" height="68" rx="6"/><text x="645" y="182">Partition</text><text class="sub" x="645" y="206">4 / SM</text></a>
+            <a href="#g-tensor" data-term="tensor"><rect class="sh" x="710" y="158" width="100" height="68" rx="6"/><text x="760" y="182">Tensor</text><text class="sub" x="760" y="206">core</text></a>
+            <a href="#g-l1" data-term="l1"><rect class="sh" x="820" y="158" width="100" height="68" rx="6"/><text x="870" y="182">L1</text><text class="sub" x="870" y="206">256 KB</text></a>
+
+            <a href="#g-mmu" data-term="mmu"><rect class="sh" x="40" y="242" width="880" height="34" rx="6"/><text x="480" y="259">MMU · page tables</text></a>
+            <a href="#g-xbar" data-term="xbar"><rect class="sh" x="40" y="288" width="880" height="34" rx="6"/><text x="480" y="305">Crossbar</text></a>
+            <a href="#g-l2" data-term="l2"><rect class="sh" x="40" y="336" width="432" height="52" rx="6"/><text x="256" y="362">L2 cache · 50 MB</text></a>
+            <a href="#g-l2" data-term="l2"><rect class="sh" x="488" y="336" width="432" height="52" rx="6"/><text x="704" y="362">L2 cache</text></a>
+
+            <a href="#g-memctrl" data-term="memctrl"><rect class="sh" x="40" y="404" width="170" height="50" rx="6"/><text x="125" y="429">Mem ctrl</text></a>
+            <a href="#g-hshub" data-term="hshub" class="key"><rect class="sh" x="222" y="404" width="130" height="50" rx="6"/><text x="287" y="429">HSHUB</text></a>
+            <a href="#g-ioctrl" data-term="ioctrl" class="key"><rect class="sh" x="364" y="404" width="160" height="50" rx="6"/><text x="444" y="420">IOCTRL</text><text class="sub" x="444" y="440">TL·DL·PHY</text></a>
+            <a href="#g-minion" data-term="minion"><rect class="sh" x="536" y="404" width="110" height="50" rx="6"/><text x="591" y="429">MINION</text></a>
+            <a href="#g-nvlink" data-term="nvlink"><rect class="sh" x="658" y="404" width="80" height="50" rx="6"/><text x="698" y="429">NVLink</text></a>
+            <a href="#g-hbm" data-term="hbm"><rect class="sh" x="750" y="404" width="170" height="50" rx="6"/><text x="835" y="429">HBM · 80 GB</text></a>
+          </svg></div><figcaption>מפה לוגית, לא תוכנית אמיתית של השבב. בקרה למעלה, חישוב באמצע, זיכרון וקישורים למטה.</figcaption></figure></section>
+    <section class="sec" id="ch1"><div class="sec-head"><span class="num">פרק 1 מתוך 9</span><h2>התמונה הגדולה</h2><p>מה זה <bdi dir="ltr">GPU</bdi>, ממה הוא בנוי, ולמה צריך לחבר כמה <bdi dir="ltr">GPU</bdi>-ים.</p>
+      <div class="chips"><span class="chip-label">רכיבים בפרק:</span><a class="chip" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi></a><a class="chip" href="#g-hbm" data-term="hbm"><bdi dir="ltr">HBM</bdi></a><a class="chip" href="#g-gsp" data-term="gsp"><bdi dir="ltr">GSP</bdi></a><a class="chip" href="#g-nvlink" data-term="nvlink"><bdi dir="ltr">NVLink</bdi></a><a class="chip" href="#g-pcie" data-term="pcie"><bdi dir="ltr">PCIe</bdi></a></div></div><article class="step" id="s1">
+    <div class="step-top"><span class="step-num">1/43</span><span>שלב</span></div>
+    <h3>מה ההבדל העיקרי בין <bdi dir="ltr">GPU</bdi> ל-<bdi dir="ltr">CPU</bdi>?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span>ל-<bdi dir="ltr">GPU</bdi> יש אלפי נתיבי חישוב פשוטים שמריצים את אותה הוראה על הרבה נתונים</span></li><li><span class="let">ב</span><span>ל-<bdi dir="ltr">GPU</bdi> יש כמה ליבות חזקות, וכל אחת מריצה משימה אחרת</span></li><li><span class="let">ג</span><span>ה-<bdi dir="ltr">GPU</bdi> מריץ את מערכת ההפעלה במקום ה-<bdi dir="ltr">CPU</bdi></span></li><li><span class="let">ד</span><span>ה-<bdi dir="ltr">GPU</bdi> מהיר רק כי השעון שלו מהיר יותר</span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: א</p>
+      <h4>הסבר מפורט</h4><p>ל-<a class="term" href="#g-host" data-term="host"><bdi dir="ltr">CPU</bdi></a> יש מעט ליבות חזקות, וכל אחת עושה עבודה אחרת. ל-<bdi dir="ltr">GPU</bdi> יש אלפי <a class="term" href="#g-fp32" data-term="fp32">נתיבי חישוב</a> פשוטים: ב-<bdi dir="ltr">H100</bdi> יש <bdi dir="ltr">132</bdi> <a class="term" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi></a>, ובכל אחד <bdi dir="ltr">128</bdi> נתיבים, כלומר כ-<bdi dir="ltr">16,900</bdi>. כל <bdi dir="ltr">32</bdi> נתיבים מבצעים יחד את אותה הוראה, וכל אחד עובד על נתון אחר. הקבוצה הזו נקראת <a class="term" href="#g-warp" data-term="warp"><bdi dir="ltr">Warp</bdi></a>. לכן <bdi dir="ltr">GPU</bdi> מהיר כשאותו צעד חוזר על המון נתונים, כמו כפל מטריצות ב-<bdi dir="ltr">AI</bdi>. המהירות באה מהמקביליות, לא מהשעון.</p>
+      <h4>למה לא האחרות</h4><p class="why-not">&quot;כמה ליבות חזקות&quot; מתאר <bdi dir="ltr">CPU</bdi>. מערכת ההפעלה והדרייבר רצים על ה-<bdi dir="ltr">CPU</bdi>. השעון של <bdi dir="ltr">GPU</bdi> בדרך כלל איטי יותר משל <bdi dir="ltr">CPU</bdi>.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi><small>הליבה של ה-<bdi dir="ltr">GPU</bdi>, שמריצה את ה-<bdi dir="ltr">threads</bdi>.</small></a><a class="chip" href="#g-fp32" data-term="fp32"><bdi dir="ltr">FP32 lanes</bdi><small>יחידות שמבצעות חישוב רגיל במספרים.</small></a><a class="chip" href="#g-warp" data-term="warp"><bdi dir="ltr">Warp</bdi><small><bdi dir="ltr">32 threads</bdi> שמריצים תמיד את אותה הוראה יחד.</small></a></div>
+    </details>
+  </article><article class="step" id="s2">
+    <div class="step-top"><span class="step-num">2/43</span><span>שלב</span></div>
+    <h3>מה זה <bdi dir="ltr">SM</bdi>?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span>יחידת זיכרון גדולה ליד השבב</span></li><li><span class="let">ב</span><span>בקר קטן שמריץ את הקושחה</span></li><li><span class="let">ג</span><span>הממשק שמחבר את ה-<bdi dir="ltr">GPU</bdi> ל-<bdi dir="ltr">CPU</bdi></span></li><li><span class="let">ד</span><span>הליבה של ה-<bdi dir="ltr">GPU</bdi>, שמריצה את ה-<bdi dir="ltr">threads</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ד</p>
+      <h4>הסבר מפורט</h4><p>ה-<a class="term" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi></a> <bdi dir="ltr">(Streaming Multiprocessor)</bdi> הוא הליבה האמיתית של ה-<bdi dir="ltr">GPU</bdi>. ב-<bdi dir="ltr">H100 SXM5</bdi> פעילים <bdi dir="ltr">132</bdi>. הם מקובצים בזוגות בתוך <a class="term" href="#g-tpc" data-term="tpc"><bdi dir="ltr">TPC</bdi></a>, וה-<bdi dir="ltr">TPC</bdi>-ים בתוך <a class="term" href="#g-gpc" data-term="gpc"><bdi dir="ltr">GPC</bdi></a>. בתוך כל <bdi dir="ltr">SM</bdi> יש <bdi dir="ltr">4</bdi> <a class="term" href="#g-partition" data-term="partition"><bdi dir="ltr">partitions</bdi></a> ו-<a class="term" href="#g-l1" data-term="l1"><bdi dir="ltr">L1 / shared memory</bdi></a> משותף. בהמשך המסלול נפתח את ה-<bdi dir="ltr">SM</bdi> לגמרי.</p>
+      <h4>למה לא האחרות</h4><p class="why-not">זיכרון גדול ליד השבב הוא <a class="term" href="#g-hbm" data-term="hbm"><bdi dir="ltr">HBM</bdi></a>. הבקר שמריץ קושחה הוא <a class="term" href="#g-gsp" data-term="gsp"><bdi dir="ltr">GSP</bdi></a>. הממשק ל-<bdi dir="ltr">CPU</bdi> הוא <a class="term" href="#g-pcie" data-term="pcie"><bdi dir="ltr">PCIe</bdi></a>.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi><small>הליבה של ה-<bdi dir="ltr">GPU</bdi>, שמריצה את ה-<bdi dir="ltr">threads</bdi>.</small></a><a class="chip" href="#g-gpc" data-term="gpc"><bdi dir="ltr">GPC</bdi><small>קבוצה גדולה של יחידות חישוב.</small></a><a class="chip" href="#g-tpc" data-term="tpc"><bdi dir="ltr">TPC</bdi><small>זוג <bdi dir="ltr">SM</bdi>-ים.</small></a></div>
+    </details>
+  </article><article class="step" id="s3">
+    <div class="step-top"><span class="step-num">3/43</span><span>שלב</span></div>
+    <h3>איפה נמצא הזיכרון הגדול ביותר של ה-<bdi dir="ltr">GPU</bdi>?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span><bdi dir="ltr">L1</bdi></span></li><li><span class="let">ב</span><span><bdi dir="ltr">L2</bdi></span></li><li><span class="let">ג</span><span><bdi dir="ltr">HBM</bdi></span></li><li><span class="let">ד</span><span><bdi dir="ltr">Registers</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ג</p>
+      <h4>הסבר מפורט</h4><p><a class="term" href="#g-hbm" data-term="hbm"><bdi dir="ltr">HBM</bdi></a> הוא שבבי זיכרון שמוערמים ליד ה-<bdi dir="ltr">GPU: 80 GB</bdi> בקצב <bdi dir="ltr">3.35 TB/s</bdi> ב-<bdi dir="ltr">H100 SXM5</bdi>. ככל שזיכרון רחוק יותר מהנתיבים, הוא גדול ואיטי יותר: <a class="term" href="#g-regfile" data-term="regfile"><bdi dir="ltr">registers</bdi></a> ו-<a class="term" href="#g-l1" data-term="l1"><bdi dir="ltr">L1 / shared memory</bdi></a> הם <bdi dir="ltr">256 KB</bdi> לכל <bdi dir="ltr">SM</bdi>, ה-<a class="term" href="#g-l2" data-term="l2"><bdi dir="ltr">L2 cache</bdi></a> הוא <bdi dir="ltr">50 MB</bdi> לכל השבב, וה-<bdi dir="ltr">HBM</bdi> הוא <bdi dir="ltr">80 GB</bdi>. ה-<a class="term" href="#g-memctrl" data-term="memctrl"><bdi dir="ltr">memory controllers</bdi></a> הם שמדברים עם ה-<bdi dir="ltr">HBM</bdi>.</p>
+      <h4>למה לא האחרות</h4><p class="why-not"><bdi dir="ltr">L1</bdi> ו-<bdi dir="ltr">registers</bdi> הם הקטנים והמהירים ביותר. <bdi dir="ltr">L2</bdi> גדול מהם, אבל קטן פי אלפים מ-<bdi dir="ltr">HBM</bdi>.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-hbm" data-term="hbm"><bdi dir="ltr">HBM</bdi><small>הזיכרון הגדול של ה-<bdi dir="ltr">GPU</bdi>.</small></a><a class="chip" href="#g-l2" data-term="l2"><bdi dir="ltr">L2 cache</bdi><small>זיכרון מטמון אחד לכל השבב.</small></a><a class="chip" href="#g-l1" data-term="l1"><bdi dir="ltr">L1 / shared memory</bdi><small>זיכרון מהיר בתוך כל <bdi dir="ltr">SM</bdi>.</small></a><a class="chip" href="#g-memctrl" data-term="memctrl"><bdi dir="ltr">Memory controller</bdi><small>יחידה שקוראת וכותבת ל-<bdi dir="ltr">HBM</bdi>.</small></a></div>
+    </details>
+  </article><article class="step" id="s4">
+    <div class="step-top"><span class="step-num">4/43</span><span>שלב</span></div>
+    <h3>למה <bdi dir="ltr">GPU</bdi>-ים צריכים <bdi dir="ltr">NVLink</bdi>?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span>כדי להתחבר למסך</span></li><li><span class="let">ב</span><span>כי מודלים גדולים מתחלקים בין הרבה <bdi dir="ltr">GPU</bdi>-ים שמחליפים נתונים כל הזמן, ו-<bdi dir="ltr">PCIe</bdi> איטי מדי לזה</span></li><li><span class="let">ג</span><span>כי <bdi dir="ltr">PCIe</bdi> מהיר מדי</span></li><li><span class="let">ד</span><span>רק כדי לחסוך חשמל</span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ב</p>
+      <h4>הסבר מפורט</h4><p>מודל <bdi dir="ltr">AI</bdi> גדול לא נכנס ב-<bdi dir="ltr">GPU</bdi> אחד, אז העבודה מתחלקת וה-<bdi dir="ltr">GPU</bdi>-ים מחליפים תוצאות כל הזמן. <a class="term" href="#g-pcie" data-term="pcie"><bdi dir="ltr">PCIe</bdi></a> <bdi dir="ltr">Gen5</bdi> נותן כ-<bdi dir="ltr">128 GB/s</bdi> בשני הכיוונים. <a class="term" href="#g-nvlink" data-term="nvlink"><bdi dir="ltr">NVLink</bdi></a> <bdi dir="ltr">4</bdi> ב-<bdi dir="ltr">H100</bdi> נותן <bdi dir="ltr">900 GB/s</bdi>, בערך פי <bdi dir="ltr">7</bdi>. זה עדיין פחות מה-<a class="term" href="#g-hbm" data-term="hbm"><bdi dir="ltr">HBM</bdi></a> המקומי <bdi dir="ltr">(3,350 GB/s)</bdi>, ולכן תוכנה טובה שומרת את רוב התעבורה מקומית.</p>
+      <h4>למה לא האחרות</h4><p class="why-not"><bdi dir="ltr">NVLink</bdi> לא מחבר מסכים. <bdi dir="ltr">PCIe</bdi> איטי, לא מהיר מדי. חיסכון בחשמל הוא לא הסיבה.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-nvlink" data-term="nvlink"><bdi dir="ltr">NVLink</bdi><small>חיבור ישיר ומהיר בין <bdi dir="ltr">GPU</bdi>-ים, או בין <bdi dir="ltr">GPU</bdi> ל-<bdi dir="ltr">NVSwitch</bdi>.</small></a><a class="chip" href="#g-pcie" data-term="pcie"><bdi dir="ltr">PCIe</bdi><small>החיבור בין ה-<bdi dir="ltr">GPU</bdi> ל-<bdi dir="ltr">CPU</bdi>.</small></a><a class="chip" href="#g-hbm" data-term="hbm"><bdi dir="ltr">HBM</bdi><small>הזיכרון הגדול של ה-<bdi dir="ltr">GPU</bdi>.</small></a></div>
+    </details>
+  </article></section><section class="sec" id="ch2"><div class="sec-head"><span class="num">פרק 2 מתוך 9</span><h2>איך עבודה נכנסת ל-<bdi dir="ltr">GPU</bdi></h2><p>מהקריאה באפליקציה ועד שה-<bdi dir="ltr">SM</bdi>-ים מתחילים לעבוד, ובחזרה.</p>
+      <div class="chips"><span class="chip-label">רכיבים בפרק:</span><a class="chip" href="#g-driver" data-term="driver"><bdi dir="ltr">Driver</bdi></a><a class="chip" href="#g-pushbuffer" data-term="pushbuffer"><bdi dir="ltr">Pushbuffer</bdi></a><a class="chip" href="#g-doorbell" data-term="doorbell"><bdi dir="ltr">Doorbell</bdi></a><a class="chip" href="#g-frontend" data-term="frontend"><bdi dir="ltr">Front end</bdi></a><a class="chip" href="#g-wd" data-term="wd"><bdi dir="ltr">Work distributor</bdi></a><a class="chip" href="#g-copyeng" data-term="copyeng"><bdi dir="ltr">Copy engine</bdi></a><a class="chip" href="#g-semaphore" data-term="semaphore"><bdi dir="ltr">Semaphore</bdi></a></div></div><article class="step" id="s5">
+    <div class="step-top"><span class="step-num">5/43</span><span>שלב</span></div>
+    <h3>האפליקציה מריצה <bdi dir="ltr">kernel</bdi>. מה הדרייבר עושה כדי שה-<bdi dir="ltr">GPU</bdi> יידע על זה?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span>שולח את הקוד ישירות ל-<bdi dir="ltr">SM</bdi>-ים</span></li><li><span class="let">ב</span><span>כותב פקודה ל-<bdi dir="ltr">pushbuffer</bdi> בזיכרון ומצלצל ב-<bdi dir="ltr">doorbell</bdi></span></li><li><span class="let">ג</span><span>מבקש מה-<bdi dir="ltr">GSP</bdi> להריץ את ה-<bdi dir="ltr">kernel</bdi></span></li><li><span class="let">ד</span><span>מעתיק את ה-<bdi dir="ltr">kernel</bdi> ל-<bdi dir="ltr">L2</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ב</p>
+      <h4>הסבר מפורט</h4><p>ה-<a class="term" href="#g-driver" data-term="driver"><bdi dir="ltr">Driver</bdi></a> כותב את הפקודה לתוך <a class="term" href="#g-pushbuffer" data-term="pushbuffer"><bdi dir="ltr">Pushbuffer</bdi></a>: אזור בזיכרון שמשמש &quot;רשימת משימות&quot; ל-<bdi dir="ltr">GPU</bdi>. אחר כך הוא כותב לרגיסטר <a class="term" href="#g-doorbell" data-term="doorbell"><bdi dir="ltr">Doorbell</bdi></a> ב-<bdi dir="ltr">GPU</bdi>, וזה הסימן שיש עבודה חדשה. מכאן ה-<bdi dir="ltr">GPU</bdi> ממשיך לבד. ה-<bdi dir="ltr">CPU</bdi> לא מדבר עם ה-<bdi dir="ltr">SM</bdi>-ים ישירות.</p>
+      <h4>למה לא האחרות</h4><p class="why-not">ה-<bdi dir="ltr">CPU</bdi> לא שולח קוד ישירות ל-<bdi dir="ltr">SM</bdi>-ים. ה-<a class="term" href="#g-gsp" data-term="gsp"><bdi dir="ltr">GSP</bdi></a> מנהל את השבב, אבל לא מריץ <bdi dir="ltr">kernels</bdi> של משתמש. ה-<bdi dir="ltr">L2</bdi> הוא מטמון, לא תור פקודות.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-driver" data-term="driver"><bdi dir="ltr">Driver</bdi><small>מודול בקרנל של לינוקס שמנהל את ה-<bdi dir="ltr">GPU</bdi> מצד ה-<bdi dir="ltr">CPU</bdi>.</small></a><a class="chip" href="#g-pushbuffer" data-term="pushbuffer"><bdi dir="ltr">Pushbuffer</bdi><small>אזור בזיכרון שבו הדרייבר כותב רשימת פקודות ל-<bdi dir="ltr">GPU</bdi>.</small></a><a class="chip" href="#g-doorbell" data-term="doorbell"><bdi dir="ltr">Doorbell</bdi><small>רגיסטר שהדרייבר כותב אליו.</small></a></div>
+    </details>
+  </article><article class="step" id="s6">
+    <div class="step-top"><span class="step-num">6/43</span><span>שלב</span></div>
+    <h3>איזו יחידה קוראת את רשימת הפקודות מה-<bdi dir="ltr">pushbuffer</bdi>?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span><bdi dir="ltr">Front end</bdi></span></li><li><span class="let">ב</span><span><bdi dir="ltr">Copy engine</bdi></span></li><li><span class="let">ג</span><span><bdi dir="ltr">L2 cache</bdi></span></li><li><span class="let">ד</span><span><bdi dir="ltr">MMU</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: א</p>
+      <h4>הסבר מפורט</h4><p>ה-<a class="term" href="#g-frontend" data-term="frontend"><bdi dir="ltr">Front end</bdi></a> שולף את הפקודות מה-<a class="term" href="#g-pushbuffer" data-term="pushbuffer"><bdi dir="ltr">Pushbuffer</bdi></a>, מפענח אותן, ושולח כל אחת ליחידה הנכונה: עבודת חישוב ל-<a class="term" href="#g-wd" data-term="wd"><bdi dir="ltr">Work distributor</bdi></a>, והעתקות ל-<a class="term" href="#g-copyeng" data-term="copyeng"><bdi dir="ltr">Copy engine</bdi></a>.</p>
+      <h4>למה לא האחרות</h4><p class="why-not"><bdi dir="ltr">Copy engine</bdi> מעתיק נתונים ולא קורא פקודות. <a class="term" href="#g-l2" data-term="l2"><bdi dir="ltr">L2 cache</bdi></a> הוא מטמון. <a class="term" href="#g-mmu" data-term="mmu"><bdi dir="ltr">MMU</bdi></a> מתרגם כתובות.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-frontend" data-term="frontend"><bdi dir="ltr">Front end</bdi><small>היחידה בראש ה-<bdi dir="ltr">GPU</bdi> שקוראת את רשימת הפקודות.</small></a><a class="chip" href="#g-wd" data-term="wd"><bdi dir="ltr">Work distributor</bdi><small>החלק של ה-<bdi dir="ltr">front end</bdi> שמחלק עבודת חישוב.</small></a><a class="chip" href="#g-copyeng" data-term="copyeng"><bdi dir="ltr">Copy engine</bdi><small>מנוע שמעתיק בלוקים גדולים של זיכרון.</small></a></div>
+    </details>
+  </article><article class="step" id="s7">
+    <div class="step-top"><span class="step-num">7/43</span><span>שלב</span></div>
+    <h3>מי מחליט איזה <bdi dir="ltr">thread block</bdi> ירוץ על איזה <bdi dir="ltr">SM</bdi>?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span>המתכנת</span></li><li><span class="let">ב</span><span>ה-<bdi dir="ltr">L2</bdi></span></li><li><span class="let">ג</span><span>ה-<bdi dir="ltr">PMU</bdi></span></li><li><span class="let">ד</span><span>ה-<bdi dir="ltr">Work distributor</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ד</p>
+      <h4>הסבר מפורט</h4><p>ה-<a class="term" href="#g-wd" data-term="wd"><bdi dir="ltr">Work distributor</bdi></a> (ב-<bdi dir="ltr">NVIDIA</bdi> גם <bdi dir="ltr">GigaThread engine</bdi>) הוא חלק מה-<bdi dir="ltr">front end</bdi>. הוא מקבל <a class="term" href="#g-grid" data-term="grid"><bdi dir="ltr">Grid</bdi></a> ושולח כל <a class="term" href="#g-block" data-term="block"><bdi dir="ltr">Thread block</bdi></a> ל-<a class="term" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi></a> שיש בו מקום. כשבלוק מסתיים, הוא שולח את הבא. המתכנת קובע כמה <bdi dir="ltr">blocks</bdi> יש, אבל לא איפה הם ירוצו.</p>
+      <h4>למה לא האחרות</h4><p class="why-not">המתכנת לא בוחר <bdi dir="ltr">SM</bdi>. ה-<bdi dir="ltr">L2</bdi> הוא זיכרון. ה-<a class="term" href="#g-pmu" data-term="pmu"><bdi dir="ltr">PMU</bdi></a> מנהל חשמל ושעונים.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-wd" data-term="wd"><bdi dir="ltr">Work distributor</bdi><small>החלק של ה-<bdi dir="ltr">front end</bdi> שמחלק עבודת חישוב.</small></a><a class="chip" href="#g-block" data-term="block"><bdi dir="ltr">Thread block</bdi><small>קבוצה של עד <bdi dir="ltr">1,024 threads</bdi>.</small></a><a class="chip" href="#g-grid" data-term="grid"><bdi dir="ltr">Grid</bdi><small>כל ה-<bdi dir="ltr">thread blocks</bdi> של הרצה אחת של <a class="term" href="#g-kernel" data-term="kernel"><bdi dir="ltr">Kernel</bdi></a>.</small></a></div>
+    </details>
+  </article><article class="step" id="s8">
+    <div class="step-top"><span class="step-num">8/43</span><span>שלב</span></div>
+    <h3>מה התפקיד של <bdi dir="ltr">Copy engine</bdi>?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span>לחשב כפל מטריצות</span></li><li><span class="let">ב</span><span>לתרגם כתובות</span></li><li><span class="let">ג</span><span>להעתיק בלוקים גדולים של נתונים <bdi dir="ltr">(DMA)</bdi> בלי להעסיק את ה-<bdi dir="ltr">SM</bdi>-ים</span></li><li><span class="let">ד</span><span>לאתחל את ה-<bdi dir="ltr">GPU</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ג</p>
+      <h4>הסבר מפורט</h4><p><a class="term" href="#g-copyeng" data-term="copyeng"><bdi dir="ltr">Copy engines</bdi></a> הם מנועי <bdi dir="ltr">DMA. cudaMemcpy</bdi> משתמש בהם כדי להעביר קלט מזיכרון המחשב ל-<a class="term" href="#g-hbm" data-term="hbm"><bdi dir="ltr">HBM</bdi></a> דרך <a class="term" href="#g-pcie" data-term="pcie"><bdi dir="ltr">PCIe</bdi></a>, ותוצאות בחזרה. הם יכולים להעתיק גם ל-<bdi dir="ltr">GPU</bdi> אחר דרך <a class="term" href="#g-nvlink" data-term="nvlink"><bdi dir="ltr">NVLink</bdi></a>. היתרון: העתקה וחישוב רצים במקביל.</p>
+      <h4>למה לא האחרות</h4><p class="why-not">כפל מטריצות נעשה ב-<a class="term" href="#g-tensor" data-term="tensor"><bdi dir="ltr">tensor cores</bdi></a>. תרגום כתובות: <a class="term" href="#g-mmu" data-term="mmu"><bdi dir="ltr">MMU</bdi></a>. אתחול: הקושחה ב-<a class="term" href="#g-gsp" data-term="gsp"><bdi dir="ltr">GSP</bdi></a>.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-copyeng" data-term="copyeng"><bdi dir="ltr">Copy engine</bdi><small>מנוע שמעתיק בלוקים גדולים של זיכרון.</small></a><a class="chip" href="#g-hbm" data-term="hbm"><bdi dir="ltr">HBM</bdi><small>הזיכרון הגדול של ה-<bdi dir="ltr">GPU</bdi>.</small></a><a class="chip" href="#g-pcie" data-term="pcie"><bdi dir="ltr">PCIe</bdi><small>החיבור בין ה-<bdi dir="ltr">GPU</bdi> ל-<bdi dir="ltr">CPU</bdi>.</small></a></div>
+    </details>
+  </article><article class="step" id="s9">
+    <div class="step-top"><span class="step-num">9/43</span><span>שלב</span></div>
+    <h3>איך ה-<bdi dir="ltr">CPU</bdi> יודע שה-<bdi dir="ltr">kernel</bdi> הסתיים?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span>ה-<bdi dir="ltr">SM</bdi> שולח הודעה ישירות לאפליקציה</span></li><li><span class="let">ב</span><span>ה-<bdi dir="ltr">CPU</bdi> מחכה זמן קבוע</span></li><li><span class="let">ג</span><span>ה-<bdi dir="ltr">front end</bdi> כותב <bdi dir="ltr">semaphore</bdi> לזיכרון, וה-<bdi dir="ltr">CPU</bdi> רואה את הערך</span></li><li><span class="let">ד</span><span>ה-<bdi dir="ltr">GSP</bdi> מפעיל מחדש את ה-<bdi dir="ltr">CPU</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ג</p>
+      <h4>הסבר מפורט</h4><p>כשכל ה-<bdi dir="ltr">blocks</bdi> מסתיימים, ה-<a class="term" href="#g-frontend" data-term="frontend"><bdi dir="ltr">Front end</bdi></a> כותב <a class="term" href="#g-semaphore" data-term="semaphore"><bdi dir="ltr">Semaphore</bdi></a>: ערך בזיכרון שה-<bdi dir="ltr">CPU</bdi> יכול לקרוא. הדרייבר רואה את הערך ומודיע לאפליקציה. אחר כך <a class="term" href="#g-copyeng" data-term="copyeng"><bdi dir="ltr">Copy engine</bdi></a> מחזיר את התוצאות.</p>
+      <h4>למה לא האחרות</h4><p class="why-not">אין ל-<bdi dir="ltr">SM</bdi> ערוץ ישיר לאפליקציה. זמן קבוע לא אמין. ה-<bdi dir="ltr">GSP</bdi> לא מפעיל את ה-<bdi dir="ltr">CPU</bdi>.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-semaphore" data-term="semaphore"><bdi dir="ltr">Semaphore</bdi><small>כתיבה של ערך לזיכרון כדי לסמן שמשהו הסתיים.</small></a><a class="chip" href="#g-frontend" data-term="frontend"><bdi dir="ltr">Front end</bdi><small>היחידה בראש ה-<bdi dir="ltr">GPU</bdi> שקוראת את רשימת הפקודות.</small></a></div>
+    </details>
+  </article></section><section class="sec" id="ch3"><div class="sec-head"><span class="num">פרק 3 מתוך 9</span><h2>החישוב: מ-<bdi dir="ltr">GPC</bdi> ועד נתיב</h2><p>ההיררכיה של יחידות החישוב, ואיך הקוד שלך ממופה עליה.</p>
+      <div class="chips"><span class="chip-label">רכיבים בפרק:</span><a class="chip" href="#g-gpc" data-term="gpc"><bdi dir="ltr">GPC</bdi></a><a class="chip" href="#g-tpc" data-term="tpc"><bdi dir="ltr">TPC</bdi></a><a class="chip" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi></a><a class="chip" href="#g-partition" data-term="partition"><bdi dir="ltr">SM partition</bdi></a><a class="chip" href="#g-scheduler" data-term="scheduler"><bdi dir="ltr">Warp scheduler</bdi></a><a class="chip" href="#g-regfile" data-term="regfile"><bdi dir="ltr">Register file</bdi></a><a class="chip" href="#g-fp32" data-term="fp32"><bdi dir="ltr">FP32 lanes</bdi></a><a class="chip" href="#g-tensor" data-term="tensor"><bdi dir="ltr">Tensor core</bdi></a><a class="chip" href="#g-l1" data-term="l1"><bdi dir="ltr">L1 / shared memory</bdi></a><a class="chip" href="#g-warp" data-term="warp"><bdi dir="ltr">Warp</bdi></a><a class="chip" href="#g-block" data-term="block"><bdi dir="ltr">Thread block</bdi></a><a class="chip" href="#g-thread" data-term="thread"><bdi dir="ltr">Thread</bdi></a></div></div><article class="step" id="s10">
+    <div class="step-top"><span class="step-num">10/43</span><span>שלב</span></div>
+    <h3>מה הסדר הנכון של ההיררכיה, מהגדול לקטן?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span><bdi dir="ltr">SM</bdi> ← <bdi dir="ltr">TPC</bdi> ← <bdi dir="ltr">GPC</bdi> ← <bdi dir="ltr">partition</bdi></span></li><li><span class="let">ב</span><span><bdi dir="ltr">GPC</bdi> ← <bdi dir="ltr">TPC</bdi> ← <bdi dir="ltr">SM</bdi> ← <bdi dir="ltr">partition</bdi></span></li><li><span class="let">ג</span><span><bdi dir="ltr">TPC</bdi> ← <bdi dir="ltr">GPC</bdi> ← <bdi dir="ltr">partition</bdi> ← <bdi dir="ltr">SM</bdi></span></li><li><span class="let">ד</span><span><bdi dir="ltr">partition</bdi> ← <bdi dir="ltr">SM</bdi> ← <bdi dir="ltr">GPC</bdi> ← <bdi dir="ltr">TPC</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ב</p>
+      <h4>הסבר מפורט</h4><p><a class="term" href="#g-gpc" data-term="gpc"><bdi dir="ltr">GPC</bdi></a> מכיל <bdi dir="ltr">9</bdi> <a class="term" href="#g-tpc" data-term="tpc"><bdi dir="ltr">TPC</bdi>-ים</a>. כל <bdi dir="ltr">TPC</bdi> מכיל <bdi dir="ltr">2</bdi> <a class="term" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi>-ים</a>. כל <bdi dir="ltr">SM</bdi> מתחלק ל-<bdi dir="ltr">4</bdi> <a class="term" href="#g-partition" data-term="partition"><bdi dir="ltr">partitions</bdi></a>. בשבב <bdi dir="ltr">GH100</bdi> המלא: <bdi dir="ltr">8 × 9 × 2</bdi> = <bdi dir="ltr">144 SM</bdi>, ומתוכם <bdi dir="ltr">132</bdi> פעילים ב-<bdi dir="ltr">H100 SXM5</bdi>.</p>
+      <h4>למה לא האחרות</h4><p class="why-not">בכל שאר האפשרויות הסדר הפוך או מעורבב. כדאי לזכור את המספרים: <bdi dir="ltr">8 GPC, 9 TPC</bdi> בכל אחד, <bdi dir="ltr">2 SM</bdi> בכל <bdi dir="ltr">TPC</bdi>.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-gpc" data-term="gpc"><bdi dir="ltr">GPC</bdi><small>קבוצה גדולה של יחידות חישוב.</small></a><a class="chip" href="#g-tpc" data-term="tpc"><bdi dir="ltr">TPC</bdi><small>זוג <bdi dir="ltr">SM</bdi>-ים.</small></a><a class="chip" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi><small>הליבה של ה-<bdi dir="ltr">GPU</bdi>, שמריצה את ה-<bdi dir="ltr">threads</bdi>.</small></a><a class="chip" href="#g-partition" data-term="partition"><bdi dir="ltr">SM partition</bdi><small>אחד מארבעת החלקים של <bdi dir="ltr">SM</bdi>.</small></a></div>
+    </details>
+  </article><article class="step" id="s11">
+    <div class="step-top"><span class="step-num">11/43</span><span>שלב</span></div>
+    <h3>מה יש בכל <bdi dir="ltr">SM partition</bdi>?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span><bdi dir="ltr">warp scheduler, register file, 32</bdi> נתיבי <bdi dir="ltr">FP32</bdi> ו-<bdi dir="ltr">tensor core</bdi></span></li><li><span class="let">ב</span><span>רק זיכרון</span></li><li><span class="let">ג</span><span>בקר זיכרון ו-<bdi dir="ltr">HBM</bdi></span></li><li><span class="let">ד</span><span><bdi dir="ltr">MINION</bdi> ו-<bdi dir="ltr">PHY</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: א</p>
+      <h4>הסבר מפורט</h4><p>כל <a class="term" href="#g-partition" data-term="partition"><bdi dir="ltr">SM partition</bdi></a> הוא כמו ליבה קטנה: <a class="term" href="#g-scheduler" data-term="scheduler"><bdi dir="ltr">Warp scheduler</bdi></a> שבוחר <bdi dir="ltr">warp</bdi>, <a class="term" href="#g-regfile" data-term="regfile"><bdi dir="ltr">Register file</bdi></a> של <bdi dir="ltr">64 KB, 32</bdi> <a class="term" href="#g-fp32" data-term="fp32">נתיבי <bdi dir="ltr">FP32</bdi></a> ו-<a class="term" href="#g-tensor" data-term="tensor"><bdi dir="ltr">Tensor core</bdi></a> אחד. ארבעת ה-<bdi dir="ltr">partitions</bdi> חולקים <bdi dir="ltr">256 KB</bdi> של <a class="term" href="#g-l1" data-term="l1"><bdi dir="ltr">L1 / shared memory</bdi></a>. לכן ב-<bdi dir="ltr">SM</bdi> יש <bdi dir="ltr">128</bdi> נתיבים ו-<bdi dir="ltr">4 tensor cores</bdi>.</p>
+      <h4>למה לא האחרות</h4><p class="why-not">זיכרון לבד לא מבצע חישוב. בקר זיכרון ו-<bdi dir="ltr">HBM</bdi> נמצאים בשולי השבב. <a class="term" href="#g-minion" data-term="minion"><bdi dir="ltr">MINION</bdi></a> ו-<a class="term" href="#g-phy" data-term="phy"><bdi dir="ltr">PHY / SerDes</bdi></a> שייכים לבלוק הקישור.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-partition" data-term="partition"><bdi dir="ltr">SM partition</bdi><small>אחד מארבעת החלקים של <bdi dir="ltr">SM</bdi>.</small></a><a class="chip" href="#g-scheduler" data-term="scheduler"><bdi dir="ltr">Warp scheduler</bdi><small>היחידה שבוחרת איזה <bdi dir="ltr">warp</bdi> ירוץ עכשיו.</small></a><a class="chip" href="#g-regfile" data-term="regfile"><bdi dir="ltr">Register file</bdi><small>האחסון המהיר ביותר על השבב.</small></a><a class="chip" href="#g-fp32" data-term="fp32"><bdi dir="ltr">FP32 lanes</bdi><small>יחידות שמבצעות חישוב רגיל במספרים.</small></a><a class="chip" href="#g-tensor" data-term="tensor"><bdi dir="ltr">Tensor core</bdi><small>יחידה שמכפילה מטריצות קטנות בצעד אחד.</small></a></div>
+    </details>
+  </article><article class="step" id="s12">
+    <div class="step-top"><span class="step-num">12/43</span><span>שלב</span></div>
+    <h3>כמה <bdi dir="ltr">threads</bdi> יש ב-<bdi dir="ltr">warp</bdi> אחד?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span><bdi dir="ltr">16</bdi></span></li><li><span class="let">ב</span><span><bdi dir="ltr">64</bdi></span></li><li><span class="let">ג</span><span><bdi dir="ltr">1,024</bdi></span></li><li><span class="let">ד</span><span><bdi dir="ltr">32</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ד</p>
+      <h4>הסבר מפורט</h4><p><a class="term" href="#g-warp" data-term="warp"><bdi dir="ltr">Warp</bdi></a> הוא <bdi dir="ltr">32</bdi> <a class="term" href="#g-thread" data-term="thread"><bdi dir="ltr">threads</bdi></a> שתמיד מריצים את אותה הוראה. בכל מחזור, ה-<a class="term" href="#g-scheduler" data-term="scheduler"><bdi dir="ltr">Warp scheduler</bdi></a> בוחר <bdi dir="ltr">warp</bdi> מוכן ושולח הוראה אחת ל-<bdi dir="ltr">32</bdi> הנתיבים. אם <bdi dir="ltr">threads</bdi> ב-<bdi dir="ltr">warp</bdi> הולכים לכיוונים שונים בקוד <bdi dir="ltr">(if/else)</bdi>, החומרה מריצה כל צד בנפרד, וזה מאט.</p>
+      <h4>למה לא האחרות</h4><p class="why-not"><bdi dir="ltr">1,024</bdi> הוא הגודל המרבי של <a class="term" href="#g-block" data-term="block"><bdi dir="ltr">thread block</bdi></a>, לא של <bdi dir="ltr">warp</bdi>.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-warp" data-term="warp"><bdi dir="ltr">Warp</bdi><small><bdi dir="ltr">32 threads</bdi> שמריצים תמיד את אותה הוראה יחד.</small></a><a class="chip" href="#g-thread" data-term="thread"><bdi dir="ltr">Thread</bdi><small>עותק אחד של ה-<a class="term" href="#g-kernel" data-term="kernel"><bdi dir="ltr">Kernel</bdi></a>, שעובד על פיסת נתונים אחת.</small></a><a class="chip" href="#g-scheduler" data-term="scheduler"><bdi dir="ltr">Warp scheduler</bdi><small>היחידה שבוחרת איזה <bdi dir="ltr">warp</bdi> ירוץ עכשיו.</small></a></div>
+    </details>
+  </article><article class="step" id="s13">
+    <div class="step-top"><span class="step-num">13/43</span><span>שלב</span></div>
+    <h3>על מה רץ <bdi dir="ltr">thread block</bdi>?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span>מתפזר על כל ה-<bdi dir="ltr">SM</bdi>-ים</span></li><li><span class="let">ב</span><span>על נתיב אחד</span></li><li><span class="let">ג</span><span>על ה-<bdi dir="ltr">GSP</bdi></span></li><li><span class="let">ד</span><span>על <bdi dir="ltr">SM</bdi> אחד, ונשאר בו עד שהוא מסיים</span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ד</p>
+      <h4>הסבר מפורט</h4><p>יש התאמה בין התוכנה לחומרה: <a class="term" href="#g-grid" data-term="grid"><bdi dir="ltr">Grid</bdi></a> רץ על כל ה-<bdi dir="ltr">GPU</bdi>, <a class="term" href="#g-block" data-term="block"><bdi dir="ltr">Thread block</bdi></a> רץ על <a class="term" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi></a> אחד ונשאר בו עד הסוף, <a class="term" href="#g-warp" data-term="warp"><bdi dir="ltr">Warp</bdi></a> רץ על <a class="term" href="#g-partition" data-term="partition"><bdi dir="ltr">SM partition</bdi></a> אחד, ו-<a class="term" href="#g-thread" data-term="thread"><bdi dir="ltr">Thread</bdi></a> רץ על נתיב אחד. בגלל שבלוק נשאר ב-<bdi dir="ltr">SM</bdi> אחד, ה-<bdi dir="ltr">threads</bdi> שלו יכולים לחלוק <a class="term" href="#g-l1" data-term="l1"><bdi dir="ltr">shared memory</bdi></a> ולהסתנכרן.</p>
+      <h4>למה לא האחרות</h4><p class="why-not">בלוק לא מתפזר בין <bdi dir="ltr">SM</bdi>-ים. נתיב מריץ <bdi dir="ltr">thread</bdi> אחד. ה-<bdi dir="ltr">GSP</bdi> לא מריץ קוד משתמש.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-block" data-term="block"><bdi dir="ltr">Thread block</bdi><small>קבוצה של עד <bdi dir="ltr">1,024 threads</bdi>.</small></a><a class="chip" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi><small>הליבה של ה-<bdi dir="ltr">GPU</bdi>, שמריצה את ה-<bdi dir="ltr">threads</bdi>.</small></a><a class="chip" href="#g-l1" data-term="l1"><bdi dir="ltr">L1 / shared memory</bdi><small>זיכרון מהיר בתוך כל <bdi dir="ltr">SM</bdi>.</small></a></div>
+    </details>
+  </article><article class="step" id="s14">
+    <div class="step-top"><span class="step-num">14/43</span><span>שלב</span></div>
+    <h3>למה ה-<bdi dir="ltr">warp scheduler</bdi> מחזיק הרבה <bdi dir="ltr">warps</bdi> בו-זמנית?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span>כדי לחסוך רגיסטרים</span></li><li><span class="let">ב</span><span>כי כל <bdi dir="ltr">warp</bdi> רץ על נתיב אחד</span></li><li><span class="let">ג</span><span>כדי שכאשר <bdi dir="ltr">warp</bdi> מחכה לזיכרון, הוא יעבור מיד לאחר והנתיבים לא יעמדו</span></li><li><span class="let">ד</span><span>כדי להאט את ה-<bdi dir="ltr">SM</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ג</p>
+      <h4>הסבר מפורט</h4><p>גישה לזיכרון לוקחת מאות מחזורי שעון. במקום לחכות, ה-<a class="term" href="#g-scheduler" data-term="scheduler"><bdi dir="ltr">Warp scheduler</bdi></a> עובר ל-<bdi dir="ltr">warp</bdi> אחר שמוכן. המעבר כמעט חינמי, כי הרגיסטרים של כל ה-<bdi dir="ltr">warps</bdi> כבר יושבים ב-<a class="term" href="#g-regfile" data-term="regfile"><bdi dir="ltr">Register file</bdi></a>. לכן מריצים על <bdi dir="ltr">GPU</bdi> הרבה יותר <bdi dir="ltr">threads</bdi> ממספר הנתיבים.</p>
+      <h4>למה לא האחרות</h4><p class="why-not">הרבה <bdi dir="ltr">warps</bdi> צורכים יותר רגיסטרים, לא פחות. <bdi dir="ltr">warp</bdi> רץ על <bdi dir="ltr">32</bdi> נתיבים.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-scheduler" data-term="scheduler"><bdi dir="ltr">Warp scheduler</bdi><small>היחידה שבוחרת איזה <bdi dir="ltr">warp</bdi> ירוץ עכשיו.</small></a><a class="chip" href="#g-regfile" data-term="regfile"><bdi dir="ltr">Register file</bdi><small>האחסון המהיר ביותר על השבב.</small></a><a class="chip" href="#g-warp" data-term="warp"><bdi dir="ltr">Warp</bdi><small><bdi dir="ltr">32 threads</bdi> שמריצים תמיד את אותה הוראה יחד.</small></a></div>
+    </details>
+  </article><article class="step" id="s15">
+    <div class="step-top"><span class="step-num">15/43</span><span>שלב</span></div>
+    <h3>מה התפקיד של <bdi dir="ltr">tensor core</bdi>?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span>לנהל את צריכת החשמל</span></li><li><span class="let">ב</span><span>להכפיל מטריצות קטנות בצעד אחד</span></li><li><span class="let">ג</span><span>לשמור את ה-<bdi dir="ltr">page tables</bdi></span></li><li><span class="let">ד</span><span>לשלוח <bdi dir="ltr">flits</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ב</p>
+      <h4>הסבר מפורט</h4><p><a class="term" href="#g-tensor" data-term="tensor"><bdi dir="ltr">Tensor core</bdi></a> מבצע כפל של מטריצות קטנות בצעד אחד, הרבה יותר מהר מ-<a class="term" href="#g-fp32" data-term="fp32">נתיבי <bdi dir="ltr">FP32</bdi></a> רגילים. מודלי <bdi dir="ltr">AI</bdi> בנויים בעיקר מכפל מטריצות, ולכן רוב העבודה שלהם רצה על <bdi dir="ltr">tensor cores</bdi>. יש <bdi dir="ltr">4</bdi> בכל <a class="term" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi></a>.</p>
+      <h4>למה לא האחרות</h4><p class="why-not">חשמל: <a class="term" href="#g-pmu" data-term="pmu"><bdi dir="ltr">PMU</bdi></a>. <bdi dir="ltr">page tables</bdi>: בזיכרון, ה-<a class="term" href="#g-mmu" data-term="mmu"><bdi dir="ltr">MMU</bdi></a> קורא אותן. <bdi dir="ltr">flits</bdi>: שכבות הקישור.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-tensor" data-term="tensor"><bdi dir="ltr">Tensor core</bdi><small>יחידה שמכפילה מטריצות קטנות בצעד אחד.</small></a><a class="chip" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi><small>הליבה של ה-<bdi dir="ltr">GPU</bdi>, שמריצה את ה-<bdi dir="ltr">threads</bdi>.</small></a></div>
+    </details>
+  </article></section><section class="sec" id="ch4"><div class="sec-head"><span class="num">פרק 4 מתוך 9</span><h2>הזיכרון</h2><p>איך <bdi dir="ltr">SM</bdi> מגיע לנתונים, ומי מתרגם, מחבר ומאחסן בדרך.</p>
+      <div class="chips"><span class="chip-label">רכיבים בפרק:</span><a class="chip" href="#g-mmu" data-term="mmu"><bdi dir="ltr">MMU</bdi></a><a class="chip" href="#g-pagetable" data-term="pagetable"><bdi dir="ltr">Page table</bdi></a><a class="chip" href="#g-xbar" data-term="xbar"><bdi dir="ltr">Crossbar</bdi></a><a class="chip" href="#g-l1" data-term="l1"><bdi dir="ltr">L1 / shared memory</bdi></a><a class="chip" href="#g-l2" data-term="l2"><bdi dir="ltr">L2 cache</bdi></a><a class="chip" href="#g-memctrl" data-term="memctrl"><bdi dir="ltr">Memory controller</bdi></a><a class="chip" href="#g-hbm" data-term="hbm"><bdi dir="ltr">HBM</bdi></a></div></div><article class="step" id="s16">
+    <div class="step-top"><span class="step-num">16/43</span><span>שלב</span></div>
+    <h3>איזו יחידה מתרגמת את הכתובות שהתוכנית משתמשת בהן לכתובות אמיתיות?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span><bdi dir="ltr">MMU</bdi></span></li><li><span class="let">ב</span><span><bdi dir="ltr">Crossbar</bdi></span></li><li><span class="let">ג</span><span><bdi dir="ltr">Front end</bdi></span></li><li><span class="let">ד</span><span><bdi dir="ltr">HSHUB</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: א</p>
+      <h4>הסבר מפורט</h4><p>ה-<a class="term" href="#g-mmu" data-term="mmu"><bdi dir="ltr">MMU</bdi></a> מתרגם כתובת וירטואלית למיקום אמיתי לפי <a class="term" href="#g-pagetable" data-term="pagetable"><bdi dir="ltr">page tables</bdi></a> שה-<a class="term" href="#g-driver" data-term="driver"><bdi dir="ltr">Driver</bdi></a> בנה, וחוסם גישה אסורה. חשוב ל-<bdi dir="ltr">NVLink</bdi>: רשומה יכולה להצביע לזיכרון של <bdi dir="ltr">GPU</bdi> אחר.</p>
+      <h4>למה לא האחרות</h4><p class="why-not"><a class="term" href="#g-xbar" data-term="xbar"><bdi dir="ltr">Crossbar</bdi></a> מחבר יחידות ולא מתרגם. <a class="term" href="#g-frontend" data-term="frontend"><bdi dir="ltr">Front end</bdi></a> קורא פקודות. <a class="term" href="#g-hshub" data-term="hshub"><bdi dir="ltr">HSHUB</bdi></a> מנתב לקישורים, אבל רק אחרי התרגום.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-mmu" data-term="mmu"><bdi dir="ltr">MMU</bdi><small>יחידה שמתרגמת כתובות.</small></a><a class="chip" href="#g-pagetable" data-term="pagetable"><bdi dir="ltr">Page table</bdi><small>טבלה שממפה כתובות וירטואליות למיקום אמיתי.</small></a></div>
+    </details>
+  </article><article class="step" id="s17">
+    <div class="step-top"><span class="step-num">17/43</span><span>שלב</span></div>
+    <h3>מה התפקיד של ה-<bdi dir="ltr">crossbar</bdi>?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span>לחבר כל <bdi dir="ltr">SM</bdi> לכל חלק של ה-<bdi dir="ltr">L2</bdi></span></li><li><span class="let">ב</span><span>לחבר <bdi dir="ltr">GPU</bdi>-ים שונים</span></li><li><span class="let">ג</span><span>לחבר את ה-<bdi dir="ltr">GPU</bdi> ל-<bdi dir="ltr">CPU</bdi></span></li><li><span class="let">ד</span><span>לנתב <bdi dir="ltr">packets</bdi> ב-<bdi dir="ltr">NVSwitch</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: א</p>
+      <h4>הסבר מפורט</h4><p>ה-<a class="term" href="#g-xbar" data-term="xbar"><bdi dir="ltr">Crossbar</bdi></a> הוא רשת על השבב בין ה-<a class="term" href="#g-gpc" data-term="gpc"><bdi dir="ltr">GPC</bdi>-ים</a> ל-<a class="term" href="#g-l2" data-term="l2"><bdi dir="ltr">L2 cache</bdi></a>. ה-<bdi dir="ltr">L2</bdi> מחולק לחלקים <bdi dir="ltr">(slices)</bdi>, וכל אחד אחראי על חלק מהכתובות. ה-<bdi dir="ltr">crossbar</bdi> מאפשר לכל <a class="term" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi></a> להגיע לכל <bdi dir="ltr">slice</bdi>.</p>
+      <h4>למה לא האחרות</h4><p class="why-not"><bdi dir="ltr">GPU</bdi>-ים מתחברים ב-<a class="term" href="#g-nvlink" data-term="nvlink"><bdi dir="ltr">NVLink</bdi></a>. ה-<bdi dir="ltr">CPU</bdi> מתחבר ב-<a class="term" href="#g-pcie" data-term="pcie"><bdi dir="ltr">PCIe</bdi></a>. ניתוב ב-<bdi dir="ltr">NVSwitch</bdi>: <a class="term" href="#g-nport" data-term="nport"><bdi dir="ltr">NPORT</bdi></a>.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-xbar" data-term="xbar"><bdi dir="ltr">Crossbar</bdi><small>הרשת שמחברת את ה-<bdi dir="ltr">SM</bdi>-ים לזיכרון.</small></a><a class="chip" href="#g-l2" data-term="l2"><bdi dir="ltr">L2 cache</bdi><small>זיכרון מטמון אחד לכל השבב.</small></a><a class="chip" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi><small>הליבה של ה-<bdi dir="ltr">GPU</bdi>, שמריצה את ה-<bdi dir="ltr">threads</bdi>.</small></a></div>
+    </details>
+  </article><article class="step" id="s18">
+    <div class="step-top"><span class="step-num">18/43</span><span>שלב</span></div>
+    <h3>דרך איזו יחידה עוברת כל גישה לזיכרון, גם מקומית וגם מ-<bdi dir="ltr">GPU</bdi> אחר?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span>רק <bdi dir="ltr">L1</bdi></span></li><li><span class="let">ב</span><span><bdi dir="ltr">Copy engine</bdi></span></li><li><span class="let">ג</span><span><bdi dir="ltr">PCIe</bdi></span></li><li><span class="let">ד</span><span><bdi dir="ltr">L2 cache</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ד</p>
+      <h4>הסבר מפורט</h4><p>המסלול: <a class="term" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi></a> ← <a class="term" href="#g-l1" data-term="l1"><bdi dir="ltr">L1 / shared memory</bdi></a> ← <a class="term" href="#g-xbar" data-term="xbar"><bdi dir="ltr">Crossbar</bdi></a> ← <a class="term" href="#g-l2" data-term="l2"><bdi dir="ltr">L2 cache</bdi></a>. אם הנתון לא ב-<bdi dir="ltr">L2</bdi>, בקשה מקומית ממשיכה ל-<a class="term" href="#g-memctrl" data-term="memctrl"><bdi dir="ltr">Memory controller</bdi></a> ול-<a class="term" href="#g-hbm" data-term="hbm"><bdi dir="ltr">HBM</bdi></a>, ובקשה לזיכרון של <bdi dir="ltr">GPU</bdi> אחר ממשיכה ל-<a class="term" href="#g-hshub" data-term="hshub"><bdi dir="ltr">HSHUB</bdi></a> ול-<a class="term" href="#g-nvlink" data-term="nvlink"><bdi dir="ltr">NVLink</bdi></a>. בצד השני, ה-<bdi dir="ltr">GPU</bdi> השכן עונה מה-<bdi dir="ltr">L2</bdi> שלו.</p>
+      <h4>למה לא האחרות</h4><p class="why-not"><bdi dir="ltr">L1</bdi> שייך ל-<bdi dir="ltr">SM</bdi> אחד. <bdi dir="ltr">Copy engine</bdi> ו-<bdi dir="ltr">PCIe</bdi> לא במסלול של <bdi dir="ltr">load</bdi> רגיל.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-l2" data-term="l2"><bdi dir="ltr">L2 cache</bdi><small>זיכרון מטמון אחד לכל השבב.</small></a><a class="chip" href="#g-l1" data-term="l1"><bdi dir="ltr">L1 / shared memory</bdi><small>זיכרון מהיר בתוך כל <bdi dir="ltr">SM</bdi>.</small></a><a class="chip" href="#g-xbar" data-term="xbar"><bdi dir="ltr">Crossbar</bdi><small>הרשת שמחברת את ה-<bdi dir="ltr">SM</bdi>-ים לזיכרון.</small></a><a class="chip" href="#g-memctrl" data-term="memctrl"><bdi dir="ltr">Memory controller</bdi><small>יחידה שקוראת וכותבת ל-<bdi dir="ltr">HBM</bdi>.</small></a><a class="chip" href="#g-hshub" data-term="hshub"><bdi dir="ltr">HSHUB</bdi><small>הרכזת שמחברת את ה-<bdi dir="ltr">L2</bdi> לקישורים.</small></a></div>
+    </details>
+  </article><article class="step" id="s19">
+    <div class="step-top"><span class="step-num">19/43</span><span>שלב</span></div>
+    <h3>מה הסדר של רמות הזיכרון, מהמהירה לאיטית?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span><bdi dir="ltr">HBM</bdi> ← <bdi dir="ltr">L2</bdi> ← <bdi dir="ltr">L1</bdi> ← <bdi dir="ltr">registers</bdi></span></li><li><span class="let">ב</span><span><bdi dir="ltr">L2</bdi> ← <bdi dir="ltr">registers</bdi> ← <bdi dir="ltr">HBM</bdi> ← <bdi dir="ltr">L1</bdi></span></li><li><span class="let">ג</span><span><bdi dir="ltr">registers</bdi> ← <bdi dir="ltr">L1</bdi> ← <bdi dir="ltr">L2</bdi> ← <bdi dir="ltr">HBM</bdi></span></li><li><span class="let">ד</span><span><bdi dir="ltr">L1</bdi> ← <bdi dir="ltr">HBM</bdi> ← <bdi dir="ltr">registers</bdi> ← <bdi dir="ltr">L2</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ג</p>
+      <h4>הסבר מפורט</h4><p><a class="term" href="#g-regfile" data-term="regfile"><bdi dir="ltr">Registers</bdi></a> הם הכי מהירים ופרטיים לכל <bdi dir="ltr">thread</bdi>. <a class="term" href="#g-l1" data-term="l1"><bdi dir="ltr">L1 / shared memory</bdi></a> הוא <bdi dir="ltr">256 KB</bdi> לכל <bdi dir="ltr">SM</bdi>. <a class="term" href="#g-l2" data-term="l2"><bdi dir="ltr">L2 cache</bdi></a> הוא <bdi dir="ltr">50 MB</bdi> לכל השבב. <a class="term" href="#g-hbm" data-term="hbm"><bdi dir="ltr">HBM</bdi></a> הוא <bdi dir="ltr">80 GB</bdi>. כל רמה גדולה ואיטית יותר מהקודמת. קוד טוב שומר נתונים ברמות העליונות כמה שאפשר.</p>
+      <h4>למה לא האחרות</h4><p class="why-not">שאר האפשרויות מערבבות את הסדר.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-regfile" data-term="regfile"><bdi dir="ltr">Register file</bdi><small>האחסון המהיר ביותר על השבב.</small></a><a class="chip" href="#g-l1" data-term="l1"><bdi dir="ltr">L1 / shared memory</bdi><small>זיכרון מהיר בתוך כל <bdi dir="ltr">SM</bdi>.</small></a><a class="chip" href="#g-l2" data-term="l2"><bdi dir="ltr">L2 cache</bdi><small>זיכרון מטמון אחד לכל השבב.</small></a><a class="chip" href="#g-hbm" data-term="hbm"><bdi dir="ltr">HBM</bdi><small>הזיכרון הגדול של ה-<bdi dir="ltr">GPU</bdi>.</small></a></div>
+    </details>
+  </article></section><section class="sec" id="ch5"><div class="sec-head"><span class="num">פרק 5 מתוך 9</span><h2>הקושחה על ה-<bdi dir="ltr">GPU</bdi></h2><p>הבקרים הקטנים שמאתחלים ומנהלים את השבב. כאן יעבוד מהנדס/ת קושחה.</p>
+      <div class="chips"><span class="chip-label">רכיבים בפרק:</span><a class="chip" href="#g-gsp" data-term="gsp"><bdi dir="ltr">GSP</bdi></a><a class="chip" href="#g-gsprm" data-term="gsprm"><bdi dir="ltr">GSP-RM</bdi></a><a class="chip" href="#g-pmu" data-term="pmu"><bdi dir="ltr">PMU</bdi></a><a class="chip" href="#g-sec2" data-term="sec2"><bdi dir="ltr">SEC2</bdi></a><a class="chip" href="#g-fsp" data-term="fsp"><bdi dir="ltr">FSP</bdi></a><a class="chip" href="#g-driver" data-term="driver"><bdi dir="ltr">Driver</bdi></a></div></div><article class="step" id="s20">
+    <div class="step-top"><span class="step-num">20/43</span><span>שלב</span></div>
+    <h3>מה זה <bdi dir="ltr">GSP</bdi>?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span>סוג של מטמון</span></li><li><span class="let">ב</span><span>מעבד <bdi dir="ltr">RISC-V</bdi> בתוך ה-<bdi dir="ltr">GPU</bdi> שמריץ קושחה שמאתחלת ומנהלת את השבב</span></li><li><span class="let">ג</span><span>ספרייה של <bdi dir="ltr">CUDA</bdi></span></li><li><span class="let">ד</span><span>שם נוסף ל-<bdi dir="ltr">SM</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ב</p>
+      <h4>הסבר מפורט</h4><p><a class="term" href="#g-gsp" data-term="gsp"><bdi dir="ltr">GSP</bdi></a> <bdi dir="ltr">(GPU System Processor)</bdi> הוא מעבד <bdi dir="ltr">RISC-V</bdi> קטן בתוך ה-<bdi dir="ltr">GPU</bdi>. הוא מריץ <a class="term" href="#g-gsprm" data-term="gsprm"><bdi dir="ltr">GSP-RM</bdi></a>, החלק של הדרייבר של <bdi dir="ltr">NVIDIA</bdi> שעבר לרוץ על ה-<bdi dir="ltr">GPU</bdi>. לצידו יש בקרים נוספים: <a class="term" href="#g-pmu" data-term="pmu"><bdi dir="ltr">PMU</bdi></a>, <a class="term" href="#g-sec2" data-term="sec2"><bdi dir="ltr">SEC2</bdi></a> ו-<a class="term" href="#g-fsp" data-term="fsp"><bdi dir="ltr">FSP</bdi></a>.</p>
+      <h4>למה לא האחרות</h4><p class="why-not"><bdi dir="ltr">GSP</bdi> הוא מעבד, לא זיכרון ולא ספרייה. ה-<bdi dir="ltr">SM</bdi> מריץ קוד משתמש; ה-<bdi dir="ltr">GSP</bdi> מריץ קוד ניהול.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-gsp" data-term="gsp"><bdi dir="ltr">GSP</bdi><small>מעבד <bdi dir="ltr">RISC-V</bdi> בתוך ה-<bdi dir="ltr">GPU</bdi>.</small></a><a class="chip" href="#g-gsprm" data-term="gsprm"><bdi dir="ltr">GSP-RM</bdi><small>החלק של הדרייבר שעבר לרוץ כקושחה על ה-<bdi dir="ltr">GSP</bdi>.</small></a></div>
+    </details>
+  </article><article class="step" id="s21">
+    <div class="step-top"><span class="step-num">21/43</span><span>שלב</span></div>
+    <h3>איזה בקר אחראי על מה?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span><bdi dir="ltr">PMU</bdi>: אבטחה · <bdi dir="ltr">SEC2</bdi>: חשמל · <bdi dir="ltr">FSP</bdi>: חישוב</span></li><li><span class="let">ב</span><span><bdi dir="ltr">PMU</bdi>: חשמל ושעונים · <bdi dir="ltr">SEC2</bdi>: משימות אבטחה · <bdi dir="ltr">FSP</bdi>: אתחול מאובטח</span></li><li><span class="let">ג</span><span><bdi dir="ltr">PMU: NVLink</bdi> · <bdi dir="ltr">SEC2: HBM</bdi> · <bdi dir="ltr">FSP: PCIe</bdi></span></li><li><span class="let">ד</span><span>כולם עושים את אותו דבר</span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ב</p>
+      <h4>הסבר מפורט</h4><p><a class="term" href="#g-pmu" data-term="pmu"><bdi dir="ltr">PMU</bdi></a> מנהל שעונים ומתחים לפי עומס וחום. <a class="term" href="#g-sec2" data-term="sec2"><bdi dir="ltr">SEC2</bdi></a> מטפל במשימות אבטחה. <a class="term" href="#g-fsp" data-term="fsp"><bdi dir="ltr">FSP</bdi></a>, ב-<bdi dir="ltr">Hopper</bdi>, בודק שהקושחה אמיתית לפני שהיא רצה <bdi dir="ltr">(root of trust)</bdi>. ה-<a class="term" href="#g-gsp" data-term="gsp"><bdi dir="ltr">GSP</bdi></a> מריץ את רוב הניהול. השמות מופיעים בקוד הפתוח של <bdi dir="ltr">NVIDIA</bdi>; התיעוד הפנימי של הצוות הוא המקור המדויק.</p>
+      <h4>למה לא האחרות</h4><p class="why-not">שאר האפשרויות מחליפות את התפקידים.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-pmu" data-term="pmu"><bdi dir="ltr">PMU</bdi><small>בקר קטן לניהול צריכת חשמל.</small></a><a class="chip" href="#g-sec2" data-term="sec2"><bdi dir="ltr">SEC2</bdi><small>בקר קטן למשימות אבטחה.</small></a><a class="chip" href="#g-fsp" data-term="fsp"><bdi dir="ltr">FSP</bdi><small>בקר אבטחה ב-<bdi dir="ltr">Hopper</bdi>.</small></a></div>
+    </details>
+  </article><article class="step" id="s22">
+    <div class="step-top"><span class="step-num">22/43</span><span>שלב</span></div>
+    <h3>איך הדרייבר ב-<bdi dir="ltr">CPU</bdi> ו-<bdi dir="ltr">GSP-RM</bdi> עובדים יחד?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span>הדרייבר מחליט ושולח <bdi dir="ltr">RPC</bdi> דרך <bdi dir="ltr">PCIe</bdi>, ו-<bdi dir="ltr">GSP-RM</bdi> מבצע על החומרה</span></li><li><span class="let">ב</span><span>הם לא מדברים</span></li><li><span class="let">ג</span><span><bdi dir="ltr">GSP-RM</bdi> מריץ את האפליקציה</span></li><li><span class="let">ד</span><span>הדרייבר מריץ את הקושחה על ה-<bdi dir="ltr">CPU</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: א</p>
+      <h4>הסבר מפורט</h4><p>הדרייבר מחולק לשניים: חלק שרץ על ה-<bdi dir="ltr">CPU</bdi> (<a class="term" href="#g-driver" data-term="driver"><bdi dir="ltr">Driver</bdi></a>), ו-<a class="term" href="#g-gsprm" data-term="gsprm"><bdi dir="ltr">GSP-RM</bdi></a> שרץ על ה-<a class="term" href="#g-gsp" data-term="gsp"><bdi dir="ltr">GSP</bdi></a>. ה-<bdi dir="ltr">CPU</bdi> שולח בקשות <bdi dir="ltr">(RPC)</bdi> דרך <a class="term" href="#g-pcie" data-term="pcie"><bdi dir="ltr">PCIe</bdi></a>, ו-<bdi dir="ltr">GSP-RM</bdi> מתכנת רגיסטרים בשבב. בקוד הפתוח רואים את זה בפונקציה <bdi dir="ltr">knvlinkExecGspRmRpc</bdi>. איזו עבודה רצה בכל צד משתנה לפי גרסה ודור.</p>
+      <h4>למה לא האחרות</h4><p class="why-not">הם מדברים כל הזמן. <bdi dir="ltr">GSP-RM</bdi> לא מריץ אפליקציות. הקושחה רצה על ה-<bdi dir="ltr">GPU</bdi>, לא על ה-<bdi dir="ltr">CPU</bdi>.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-driver" data-term="driver"><bdi dir="ltr">Driver</bdi><small>מודול בקרנל של לינוקס שמנהל את ה-<bdi dir="ltr">GPU</bdi> מצד ה-<bdi dir="ltr">CPU</bdi>.</small></a><a class="chip" href="#g-gsprm" data-term="gsprm"><bdi dir="ltr">GSP-RM</bdi><small>החלק של הדרייבר שעבר לרוץ כקושחה על ה-<bdi dir="ltr">GSP</bdi>.</small></a><a class="chip" href="#g-pcie" data-term="pcie"><bdi dir="ltr">PCIe</bdi><small>החיבור בין ה-<bdi dir="ltr">GPU</bdi> ל-<bdi dir="ltr">CPU</bdi>.</small></a></div>
+    </details>
+  </article></section><section class="sec" id="ch6"><div class="sec-head"><span class="num">פרק 6 מתוך 9</span><h2><bdi dir="ltr">NVLink</bdi>: התמונה</h2><p>מה הקישור מעביר, כמה מהר, ואיך <bdi dir="ltr">load</bdi> מגיע ל-<bdi dir="ltr">GPU</bdi> אחר.</p>
+      <div class="chips"><span class="chip-label">רכיבים בפרק:</span><a class="chip" href="#g-nvlink" data-term="nvlink"><bdi dir="ltr">NVLink</bdi></a><a class="chip" href="#g-link" data-term="link"><bdi dir="ltr">Link</bdi></a><a class="chip" href="#g-sublink" data-term="sublink"><bdi dir="ltr">Sub-link</bdi></a><a class="chip" href="#g-hshub" data-term="hshub"><bdi dir="ltr">HSHUB</bdi></a><a class="chip" href="#g-mmu" data-term="mmu"><bdi dir="ltr">MMU</bdi></a><a class="chip" href="#g-nvswitch" data-term="nvswitch"><bdi dir="ltr">NVSwitch</bdi></a></div></div><article class="step" id="s23">
+    <div class="step-top"><span class="step-num">23/43</span><span>שלב</span></div>
+    <h3>מה רוחב הפס הכולל של <bdi dir="ltr">NVLink 4</bdi> ב-<bdi dir="ltr">H100</bdi>?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span><bdi dir="ltr">64 GB/s</bdi></span></li><li><span class="let">ב</span><span><bdi dir="ltr">128 GB/s</bdi></span></li><li><span class="let">ג</span><span><bdi dir="ltr">3,350 GB/s</bdi></span></li><li><span class="let">ד</span><span><bdi dir="ltr">900 GB/s</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ד</p>
+      <h4>הסבר מפורט</h4><p>ב-<bdi dir="ltr">H100</bdi> יש <bdi dir="ltr">18</bdi> <a class="term" href="#g-link" data-term="link"><bdi dir="ltr">links</bdi></a> של <a class="term" href="#g-nvlink" data-term="nvlink"><bdi dir="ltr">NVLink</bdi></a> <bdi dir="ltr">4</bdi>. כל <bdi dir="ltr">link</bdi> מעביר <bdi dir="ltr">25 GB/s</bdi> בכל כיוון: <bdi dir="ltr">18 × 25 × 2</bdi> = <bdi dir="ltr">900 GB/s</bdi>. כשמשווים מספרים, חשוב לבדוק אם הם לכיוון אחד או לשניים.</p>
+      <h4>למה לא האחרות</h4><p class="why-not"><bdi dir="ltr">64 GB/s</bdi>: <a class="term" href="#g-pcie" data-term="pcie"><bdi dir="ltr">PCIe</bdi></a> לכיוון אחד. <bdi dir="ltr">128 GB/s: PCIe</bdi> בשני הכיוונים. <bdi dir="ltr">3,350 GB/s</bdi>: <a class="term" href="#g-hbm" data-term="hbm"><bdi dir="ltr">HBM</bdi></a>.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-nvlink" data-term="nvlink"><bdi dir="ltr">NVLink</bdi><small>חיבור ישיר ומהיר בין <bdi dir="ltr">GPU</bdi>-ים, או בין <bdi dir="ltr">GPU</bdi> ל-<bdi dir="ltr">NVSwitch</bdi>.</small></a><a class="chip" href="#g-link" data-term="link"><bdi dir="ltr">Link</bdi><small>חיבור אחד בין שני צדדים.</small></a></div>
+    </details>
+  </article><article class="step" id="s24">
+    <div class="step-top"><span class="step-num">24/43</span><span>שלב</span></div>
+    <h3>איך <bdi dir="ltr">link</bdi> אחד מעביר נתונים?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span>בכיוון אחד בכל פעם</span></li><li><span class="let">ב</span><span>דרך <bdi dir="ltr">PCIe</bdi></span></li><li><span class="let">ג</span><span>כשני ערוצים חד-כיווניים שעובדים במקביל</span></li><li><span class="let">ד</span><span>דרך ה-<bdi dir="ltr">L2</bdi> של ה-<bdi dir="ltr">CPU</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ג</p>
+      <h4>הסבר מפורט</h4><p>כל <a class="term" href="#g-link" data-term="link"><bdi dir="ltr">Link</bdi></a> הוא שני <a class="term" href="#g-sublink" data-term="sublink"><bdi dir="ltr">sub-links</bdi></a>: אחד לכל כיוון, ושניהם עובדים כל הזמן <bdi dir="ltr">(full duplex)</bdi>. כל <bdi dir="ltr">sub-link</bdi> בנוי מכמה <a class="term" href="#g-lane" data-term="lane"><bdi dir="ltr">lanes</bdi></a>. ב-<bdi dir="ltr">NVLink 4: 2 lanes</bdi> בכל כיוון, כל אחד <bdi dir="ltr">100 Gb/s</bdi>. כל <a class="term" href="#g-flit" data-term="flit"><bdi dir="ltr">Flit</bdi></a> מתפזר על כל ה-<bdi dir="ltr">lanes</bdi> של ה-<bdi dir="ltr">sub-link</bdi>.</p>
+      <h4>למה לא האחרות</h4><p class="why-not">אין צורך לסירוגין: לכל כיוון חוטים משלו. <bdi dir="ltr">NVLink</bdi> נפרד מ-<bdi dir="ltr">PCIe</bdi>.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-link" data-term="link"><bdi dir="ltr">Link</bdi><small>חיבור אחד בין שני צדדים.</small></a><a class="chip" href="#g-sublink" data-term="sublink"><bdi dir="ltr">Sub-link</bdi><small>הכיוון האחד של <bdi dir="ltr">link</bdi>.</small></a><a class="chip" href="#g-lane" data-term="lane"><bdi dir="ltr">Lane</bdi><small>זוג חוטים שמעביר ביטים בכיוון אחד.</small></a></div>
+    </details>
+  </article><article class="step" id="s25">
+    <div class="step-top"><span class="step-num">25/43</span><span>שלב</span></div>
+    <h3><bdi dir="ltr">SM</bdi> מבצע <bdi dir="ltr">load</bdi>. מה קובע אם הנתונים יבואו מה-<bdi dir="ltr">HBM</bdi> המקומי או מ-<bdi dir="ltr">GPU</bdi> אחר?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span>פקודה מיוחדת שהמתכנת כותב</span></li><li><span class="let">ב</span><span>ה-<bdi dir="ltr">Copy engine</bdi></span></li><li><span class="let">ג</span><span>ה-<bdi dir="ltr">page table</bdi>: הרשומה של הכתובת מצביעה ל-<bdi dir="ltr">GPU</bdi> אחר</span></li><li><span class="let">ד</span><span><bdi dir="ltr">Fabric Manager</bdi> בכל גישה</span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ג</p>
+      <h4>הסבר מפורט</h4><p>זו אותה הוראת <bdi dir="ltr">load</bdi>. ה-<a class="term" href="#g-driver" data-term="driver"><bdi dir="ltr">Driver</bdi></a> מיפה מראש את הזיכרון של ה-<bdi dir="ltr">GPU</bdi> השכן. כשה-<a class="term" href="#g-mmu" data-term="mmu"><bdi dir="ltr">MMU</bdi></a> מתרגם, הרשומה ב-<a class="term" href="#g-pagetable" data-term="pagetable"><bdi dir="ltr">Page table</bdi></a> אומרת שהכתובת אצל <bdi dir="ltr">GPU</bdi> אחר. ה-<a class="term" href="#g-l2" data-term="l2"><bdi dir="ltr">L2 cache</bdi></a> וה-<a class="term" href="#g-hshub" data-term="hshub"><bdi dir="ltr">HSHUB</bdi></a> שולחים את הבקשה ב-<a class="term" href="#g-nvlink" data-term="nvlink"><bdi dir="ltr">NVLink</bdi></a>. לכן <bdi dir="ltr">GPU</bdi> שכן נראה כמו עוד זיכרון.</p>
+      <h4>למה לא האחרות</h4><p class="why-not">אין פקודה מיוחדת. <bdi dir="ltr">Copy engine</bdi> הוא מסלול נפרד להעתקות. <a class="term" href="#g-fm" data-term="fm"><bdi dir="ltr">Fabric Manager</bdi></a> מגדיר ניתוב פעם אחת בהפעלה.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-pagetable" data-term="pagetable"><bdi dir="ltr">Page table</bdi><small>טבלה שממפה כתובות וירטואליות למיקום אמיתי.</small></a><a class="chip" href="#g-mmu" data-term="mmu"><bdi dir="ltr">MMU</bdi><small>יחידה שמתרגמת כתובות.</small></a><a class="chip" href="#g-hshub" data-term="hshub"><bdi dir="ltr">HSHUB</bdi><small>הרכזת שמחברת את ה-<bdi dir="ltr">L2</bdi> לקישורים.</small></a></div>
+    </details>
+  </article><article class="step" id="s26">
+    <div class="step-top"><span class="step-num">26/43</span><span>שלב</span></div>
+    <h3>איזו יחידה מעבירה בקשה מה-<bdi dir="ltr">L2</bdi> אל הקישורים?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span><bdi dir="ltr">Front end</bdi></span></li><li><span class="let">ב</span><span><bdi dir="ltr">HSHUB</bdi></span></li><li><span class="let">ג</span><span><bdi dir="ltr">PMU</bdi></span></li><li><span class="let">ד</span><span><bdi dir="ltr">Work distributor</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ב</p>
+      <h4>הסבר מפורט</h4><p>ה-<a class="term" href="#g-hshub" data-term="hshub"><bdi dir="ltr">HSHUB</bdi></a> <bdi dir="ltr">(High-Speed Hub)</bdi> יושב בין ה-<a class="term" href="#g-l2" data-term="l2"><bdi dir="ltr">L2 cache</bdi></a> לבלוקי ה-<a class="term" href="#g-ioctrl" data-term="ioctrl"><bdi dir="ltr">IOCTRL</bdi></a>. הוא בוחר באיזה <bdi dir="ltr">link</bdi> לשלוח כל בקשה. <a class="term" href="#g-gsprm" data-term="gsprm"><bdi dir="ltr">GSP-RM</bdi></a> מתכנת אותו כשהקישור עולה. המסלול המלא: <bdi dir="ltr">SM</bdi> ← <bdi dir="ltr">L2</bdi> ← <bdi dir="ltr">HSHUB</bdi> ← <bdi dir="ltr">IOCTRL</bdi> ← חוטים.</p>
+      <h4>למה לא האחרות</h4><p class="why-not"><bdi dir="ltr">Front end</bdi> ו-<bdi dir="ltr">work distributor</bdi> מטפלים בפקודות ובחלוקת עבודה. <bdi dir="ltr">PMU</bdi> מנהל חשמל.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-hshub" data-term="hshub"><bdi dir="ltr">HSHUB</bdi><small>הרכזת שמחברת את ה-<bdi dir="ltr">L2</bdi> לקישורים.</small></a><a class="chip" href="#g-ioctrl" data-term="ioctrl"><bdi dir="ltr">IOCTRL</bdi><small>בלוק החומרה של קבוצת <bdi dir="ltr">links</bdi>.</small></a><a class="chip" href="#g-l2" data-term="l2"><bdi dir="ltr">L2 cache</bdi><small>זיכרון מטמון אחד לכל השבב.</small></a></div>
+    </details>
+  </article><article class="step" id="s27">
+    <div class="step-top"><span class="step-num">27/43</span><span>שלב</span></div>
+    <h3>מה הבעיה בחיבור <bdi dir="ltr">8 GPU</bdi>-ים ישירות זה לזה, בלי מתג?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span>כל <bdi dir="ltr">GPU</bdi> מחלק את ה-<bdi dir="ltr">links</bdi> שלו בין השכנים, אז כל זוג מקבל רק חלק קטן מרוחב הפס</span></li><li><span class="let">ב</span><span>אין בעיה</span></li><li><span class="let">ג</span><span><bdi dir="ltr">NVLink</bdi> לא עובד בלי מתג</span></li><li><span class="let">ד</span><span><bdi dir="ltr">PCIe</bdi> חוסם</span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: א</p>
+      <h4>הסבר מפורט</h4><p>ל-<bdi dir="ltr">H100</bdi> יש <bdi dir="ltr">18 links</bdi>. חיבור ישיר לשבעה שכנים נותן לכל זוג רק שניים או שלושה. עם <a class="term" href="#g-nvswitch" data-term="nvswitch"><bdi dir="ltr">NVSwitch</bdi></a>, כל <bdi dir="ltr">GPU</bdi> מחבר את כל ה-<bdi dir="ltr">links</bdi> למתגים, וכל זוג מקבל <bdi dir="ltr">900 GB/s</bdi> מלאים, בקפיצה אחת.</p>
+      <h4>למה לא האחרות</h4><p class="why-not"><bdi dir="ltr">NVLink</bdi> עובד גם בלי מתג, למשל בין שני <bdi dir="ltr">GPU</bdi>-ים. <bdi dir="ltr">PCIe</bdi> לא קשור לזה.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-nvswitch" data-term="nvswitch"><bdi dir="ltr">NVSwitch</bdi><small>שבב מתג שכל ה-<bdi dir="ltr">GPU</bdi>-ים מתחברים אליו.</small></a><a class="chip" href="#g-link" data-term="link"><bdi dir="ltr">Link</bdi><small>חיבור אחד בין שני צדדים.</small></a></div>
+    </details>
+  </article></section><section class="sec" id="ch7"><div class="sec-head"><span class="num">פרק 7 מתוך 9</span><h2>בתוך הקישור: הפרוטוקול</h2><p>השכבות של בלוק הקישור, ואיך הוא מתמודד עם שגיאות ועומס.</p>
+      <div class="chips"><span class="chip-label">רכיבים בפרק:</span><a class="chip" href="#g-ioctrl" data-term="ioctrl"><bdi dir="ltr">IOCTRL</bdi></a><a class="chip" href="#g-tl" data-term="tl"><bdi dir="ltr">Transaction layer</bdi></a><a class="chip" href="#g-dl" data-term="dl"><bdi dir="ltr">Data link layer</bdi></a><a class="chip" href="#g-phy" data-term="phy"><bdi dir="ltr">PHY / SerDes</bdi></a><a class="chip" href="#g-flit" data-term="flit"><bdi dir="ltr">Flit</bdi></a><a class="chip" href="#g-crc" data-term="crc"><bdi dir="ltr">CRC</bdi></a><a class="chip" href="#g-replay" data-term="replay"><bdi dir="ltr">Replay buffer</bdi></a><a class="chip" href="#g-credit" data-term="credit"><bdi dir="ltr">Credit</bdi></a><a class="chip" href="#g-lane" data-term="lane"><bdi dir="ltr">Lane</bdi></a><a class="chip" href="#g-pam4" data-term="pam4"><bdi dir="ltr">PAM4</bdi></a></div></div><article class="step" id="s28">
+    <div class="step-top"><span class="step-num">28/43</span><span>שלב</span></div>
+    <h3>מה יש בתוך בלוק <bdi dir="ltr">IOCTRL</bdi>?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span><bdi dir="ltr">SM</bdi>-ים ו-<bdi dir="ltr">L1</bdi></span></li><li><span class="let">ב</span><span><bdi dir="ltr">HBM</bdi> ובקר זיכרון</span></li><li><span class="let">ג</span><span><bdi dir="ltr">GSP</bdi> ו-<bdi dir="ltr">PMU</bdi></span></li><li><span class="let">ד</span><span>שכבת טרנזקציות, שכבת קישור, <bdi dir="ltr">PHY</bdi> ו-<bdi dir="ltr">MINION</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ד</p>
+      <h4>הסבר מפורט</h4><p><a class="term" href="#g-ioctrl" data-term="ioctrl"><bdi dir="ltr">IOCTRL</bdi></a> הוא בלוק החומרה של קבוצת <bdi dir="ltr">links</bdi>. בתוכו: <a class="term" href="#g-tl" data-term="tl"><bdi dir="ltr">Transaction layer</bdi></a> <bdi dir="ltr">(NVLTLC)</bdi> שבונה <bdi dir="ltr">packets</bdi>, <a class="term" href="#g-dl" data-term="dl"><bdi dir="ltr">Data link layer</bdi></a> <bdi dir="ltr">(NVLDL)</bdi> שמוסיף <bdi dir="ltr">CRC</bdi> ומנהל <bdi dir="ltr">replay</bdi> ו-<bdi dir="ltr">credits</bdi>, <a class="term" href="#g-phy" data-term="phy"><bdi dir="ltr">PHY / SerDes</bdi></a> שמוציא ביטים לחוטים, ו-<a class="term" href="#g-minion" data-term="minion"><bdi dir="ltr">MINION</bdi></a>, בקר שמקים את הקישור.</p>
+      <h4>למה לא האחרות</h4><p class="why-not"><bdi dir="ltr">SM</bdi>-ים נמצאים ב-<bdi dir="ltr">GPC</bdi>-ים. <bdi dir="ltr">HBM</bdi> ובקרי זיכרון בשולי השבב. <bdi dir="ltr">GSP</bdi> ו-<bdi dir="ltr">PMU</bdi> בצד הבקרה.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-ioctrl" data-term="ioctrl"><bdi dir="ltr">IOCTRL</bdi><small>בלוק החומרה של קבוצת <bdi dir="ltr">links</bdi>.</small></a><a class="chip" href="#g-tl" data-term="tl"><bdi dir="ltr">Transaction layer</bdi><small>השכבה העליונה של הפרוטוקול.</small></a><a class="chip" href="#g-dl" data-term="dl"><bdi dir="ltr">Data link layer</bdi><small>השכבה שהופכת חוט רועש לחוט שנראה בלי שגיאות.</small></a><a class="chip" href="#g-phy" data-term="phy"><bdi dir="ltr">PHY / SerDes</bdi><small>המעגלים ששולחים וקולטים ביטים על החוטים.</small></a><a class="chip" href="#g-minion" data-term="minion"><bdi dir="ltr">MINION</bdi><small>מיקרו-בקר קטן בכל <bdi dir="ltr">IOCTRL</bdi>, וגם בכל <bdi dir="ltr">NVSwitch</bdi>.</small></a></div>
+    </details>
+  </article><article class="step" id="s29">
+    <div class="step-top"><span class="step-num">29/43</span><span>שלב</span></div>
+    <h3>איזו שכבה אחראית על <bdi dir="ltr">CRC</bdi> ועל שליחה חוזרת <bdi dir="ltr">(replay)</bdi>?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span><bdi dir="ltr">Physical layer</bdi></span></li><li><span class="let">ב</span><span><bdi dir="ltr">Transaction layer</bdi></span></li><li><span class="let">ג</span><span><bdi dir="ltr">Application layer</bdi></span></li><li><span class="let">ד</span><span><bdi dir="ltr">Data link layer</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ד</p>
+      <h4>הסבר מפורט</h4><p>ה-<a class="term" href="#g-dl" data-term="dl"><bdi dir="ltr">Data link layer</bdi></a> הופך חוט רועש לחוט שנראה בלי שגיאות: <a class="term" href="#g-crc" data-term="crc"><bdi dir="ltr">CRC</bdi></a> מגלה שגיאות, <bdi dir="ltr">sequence</bdi> ו-<bdi dir="ltr">ack</bdi> מאשרים קבלה, <a class="term" href="#g-replay" data-term="replay"><bdi dir="ltr">Replay buffer</bdi></a> מאפשר שליחה חוזרת, ו-<a class="term" href="#g-credit" data-term="credit"><bdi dir="ltr">credits</bdi></a> מונעים הצפה. ה-<a class="term" href="#g-phy" data-term="phy"><bdi dir="ltr">PHY / SerDes</bdi></a> רק מעביר ביטים. ה-<a class="term" href="#g-tl" data-term="tl"><bdi dir="ltr">Transaction layer</bdi></a> מניח שהקישור כבר אמין.</p>
+      <h4>למה לא האחרות</h4><p class="why-not">ה-<bdi dir="ltr">Physical</bdi> לא בודק נכונות. ה-<bdi dir="ltr">Transaction</bdi> מקבל קישור אמין. אין <bdi dir="ltr">Application layer</bdi> ב-<bdi dir="ltr">NVLink</bdi>.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-dl" data-term="dl"><bdi dir="ltr">Data link layer</bdi><small>השכבה שהופכת חוט רועש לחוט שנראה בלי שגיאות.</small></a><a class="chip" href="#g-crc" data-term="crc"><bdi dir="ltr">CRC</bdi><small>סכום ביקורת שמגלה ביטים שהשתבשו.</small></a><a class="chip" href="#g-replay" data-term="replay"><bdi dir="ltr">Replay buffer</bdi><small>עותק של <bdi dir="ltr">flits</bdi> שנשלחו ועוד לא אושרו.</small></a><a class="chip" href="#g-credit" data-term="credit"><bdi dir="ltr">Credit</bdi><small>מייצג מקום פנוי ב-<bdi dir="ltr">buffer</bdi> של המקבל.</small></a></div>
+    </details>
+  </article><article class="step" id="s30">
+    <div class="step-top"><span class="step-num">30/43</span><span>שלב</span></div>
+    <h3>מה זה <bdi dir="ltr">flit</bdi>?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span>דגם של <bdi dir="ltr">GPU</bdi></span></li><li><span class="let">ב</span><span>סוג של זיכרון</span></li><li><span class="let">ג</span><span>יחידת הנתונים הבסיסית שהקישור בודק ושולח שוב אם יש שגיאה</span></li><li><span class="let">ד</span><span>פקודה של <bdi dir="ltr">CUDA</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ג</p>
+      <h4>הסבר מפורט</h4><p><a class="term" href="#g-flit" data-term="flit"><bdi dir="ltr">Flit</bdi></a> <bdi dir="ltr">(flow control unit)</bdi> נוצר ב-<a class="term" href="#g-tl" data-term="tl"><bdi dir="ltr">Transaction layer</bdi></a> ונבדק ב-<a class="term" href="#g-dl" data-term="dl"><bdi dir="ltr">Data link layer</bdi></a>. ב-<bdi dir="ltr">NVLink 1</bdi>, כפי ש-<bdi dir="ltr">NVIDIA</bdi> פרסמה ב-<bdi dir="ltr">2016: flit</bdi> של <bdi dir="ltr">128</bdi> ביט. <bdi dir="ltr">packet</bdi> הוא <bdi dir="ltr">header flit, flits</bdi> אופציונליים, ועד <bdi dir="ltr">16 data flits (256</bdi> בתים). ב-<bdi dir="ltr">header</bdi>: <a class="term" href="#g-crc" data-term="crc"><bdi dir="ltr">CRC</bdi></a> של <bdi dir="ltr">25</bdi> ביט, <bdi dir="ltr">20</bdi> ביט לשכבת הקישור ו-<bdi dir="ltr">83</bdi> ביט לטרנזקציה. בדורות חדשים הפורמט השתנה.</p>
+      <h4>למה לא האחרות</h4><p class="why-not"><bdi dir="ltr">flit</bdi> הוא לא דגם, לא זיכרון ולא פקודה.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-flit" data-term="flit"><bdi dir="ltr">Flit</bdi><small>יחידת הנתונים הבסיסית של הקישור.</small></a><a class="chip" href="#g-crc" data-term="crc"><bdi dir="ltr">CRC</bdi><small>סכום ביקורת שמגלה ביטים שהשתבשו.</small></a></div>
+    </details>
+  </article><article class="step" id="s31">
+    <div class="step-top"><span class="step-num">31/43</span><span>שלב</span></div>
+    <h3><bdi dir="ltr">GPU 1</bdi> קיבל <bdi dir="ltr">flit</bdi> עם <bdi dir="ltr">CRC</bdi> שגוי. מה קורה?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span>הדרייבר מקבל <bdi dir="ltr">interrupt</bdi> ושולח מחדש</span></li><li><span class="let">ב</span><span><bdi dir="ltr">GPU 1</bdi> זורק את ה-<bdi dir="ltr">flit</bdi> ואת מה שאחריו, ו-<bdi dir="ltr">GPU 0</bdi> שולח אותם שוב מה-<bdi dir="ltr">replay buffer</bdi>, בחומרה</span></li><li><span class="let">ג</span><span>הנתונים הפגומים מגיעים לאפליקציה</span></li><li><span class="let">ד</span><span>הקישור נסגר מיד</span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ב</p>
+      <h4>הסבר מפורט</h4><p>הכול בחומרה של ה-<a class="term" href="#g-dl" data-term="dl"><bdi dir="ltr">Data link layer</bdi></a>. המקבל זורק את ה-<bdi dir="ltr">flit</bdi> הפגום ואת מה שאחריו ומבקש <bdi dir="ltr">replay</bdi>. השולח שולח מחדש מה-<a class="term" href="#g-replay" data-term="replay"><bdi dir="ltr">Replay buffer</bdi></a>. המחיר: בערך סיבוב הלוך-חזור. רק אם שגיאות נמשכות ועוברות סף, הקישור נכנס להתאוששות והתוכנה רואה <a class="term" href="#g-xid74" data-term="xid74"><bdi dir="ltr">Xid 74</bdi></a>.</p>
+      <h4>למה לא האחרות</h4><p class="why-not">הדרייבר לא מעורב בשגיאה בודדת. <a class="term" href="#g-crc" data-term="crc"><bdi dir="ltr">CRC</bdi></a> עוצר נתונים פגומים. שגיאה אחת לא סוגרת קישור.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-replay" data-term="replay"><bdi dir="ltr">Replay buffer</bdi><small>עותק של <bdi dir="ltr">flits</bdi> שנשלחו ועוד לא אושרו.</small></a><a class="chip" href="#g-crc" data-term="crc"><bdi dir="ltr">CRC</bdi><small>סכום ביקורת שמגלה ביטים שהשתבשו.</small></a><a class="chip" href="#g-dl" data-term="dl"><bdi dir="ltr">Data link layer</bdi><small>השכבה שהופכת חוט רועש לחוט שנראה בלי שגיאות.</small></a></div>
+    </details>
+  </article><article class="step" id="s32">
+    <div class="step-top"><span class="step-num">32/43</span><span>שלב</span></div>
+    <h3>ל-<bdi dir="ltr">GPU 0</bdi> נגמרו ה-<bdi dir="ltr">credits</bdi>. מה זה אומר?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span>ה-<bdi dir="ltr">buffer</bdi> של המקבל מלא, אז השולח מחכה עד שיחזור <bdi dir="ltr">credit</bdi></span></li><li><span class="let">ב</span><span>הקישור התקלקל</span></li><li><span class="let">ג</span><span>צריך לאתחל את ה-<bdi dir="ltr">GPU</bdi></span></li><li><span class="let">ד</span><span>התעבורה עוברת ל-<bdi dir="ltr">PCIe</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: א</p>
+      <h4>הסבר מפורט</h4><p><a class="term" href="#g-credit" data-term="credit"><bdi dir="ltr">Credit</bdi></a> מייצג מקום פנוי אצל המקבל. השולח מוציא אחד על כל <bdi dir="ltr">flit</bdi>, והמקבל מחזיר כשהוא מפנה מקום. בלי <bdi dir="ltr">credits</bdi> השולח מחכה, וכך אין הצפה. בתכנון, ה-<bdi dir="ltr">buffer</bdi> צריך לכסות רוחב פס × זמן הלוך-חזור, אחרת הקישור ייעצר גם כשהוא תקין.</p>
+      <h4>למה לא האחרות</h4><p class="why-not">זה מצב רגיל של בקרת זרימה, לא תקלה.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-credit" data-term="credit"><bdi dir="ltr">Credit</bdi><small>מייצג מקום פנוי ב-<bdi dir="ltr">buffer</bdi> של המקבל.</small></a><a class="chip" href="#g-dl" data-term="dl"><bdi dir="ltr">Data link layer</bdi><small>השכבה שהופכת חוט רועש לחוט שנראה בלי שגיאות.</small></a></div>
+    </details>
+  </article><article class="step" id="s33">
+    <div class="step-top"><span class="step-num">33/43</span><span>שלב</span></div>
+    <h3>למה בדורות חדשים יש פחות <bdi dir="ltr">lanes</bdi> בכל <bdi dir="ltr">link</bdi>?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span>כי כל <bdi dir="ltr">lane</bdi> מהיר הרבה יותר (<bdi dir="ltr">100–200 Gb/s</bdi> עם <bdi dir="ltr">PAM4</bdi>), אז צריך פחות חוטים</span></li><li><span class="let">ב</span><span>כי רוחב הפס ירד</span></li><li><span class="let">ג</span><span>כי <bdi dir="ltr">lanes</bdi> כבר לא נחוצים</span></li><li><span class="let">ד</span><span>כי עברו ל-<bdi dir="ltr">PCIe</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: א</p>
+      <h4>הסבר מפורט</h4><p>מהירות כל <a class="term" href="#g-lane" data-term="lane"><bdi dir="ltr">Lane</bdi></a>: <bdi dir="ltr">NVLink 1: 8 × 20 Gb/s. NVLink 2: 8 × 25. NVLink 3: 4 × 50. NVLink 4: 2 × 100. NVLink 5: 2 × 200</bdi>. <a class="term" href="#g-pam4" data-term="pam4"><bdi dir="ltr">PAM4</bdi></a> שולח <bdi dir="ltr">2</bdi> ביטים בכל סמל. החיסכון בחוטים מאפשר יותר <bdi dir="ltr">links</bdi> בכל <bdi dir="ltr">GPU</bdi>: מ-<bdi dir="ltr">4</bdi> ב-<bdi dir="ltr">P100</bdi> ל-<bdi dir="ltr">18</bdi> ב-<bdi dir="ltr">H100</bdi>.</p>
+      <h4>למה לא האחרות</h4><p class="why-not">רוחב הפס הכולל עלה בכל דור. <bdi dir="ltr">lanes</bdi> עדיין קיימים.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-lane" data-term="lane"><bdi dir="ltr">Lane</bdi><small>זוג חוטים שמעביר ביטים בכיוון אחד.</small></a><a class="chip" href="#g-pam4" data-term="pam4"><bdi dir="ltr">PAM4</bdi><small>שיטה לשלוח <bdi dir="ltr">2</bdi> ביטים בכל סמל במקום ביט אחד.</small></a><a class="chip" href="#g-phy" data-term="phy"><bdi dir="ltr">PHY / SerDes</bdi><small>המעגלים ששולחים וקולטים ביטים על החוטים.</small></a></div>
+    </details>
+  </article></section><section class="sec" id="ch8"><div class="sec-head"><span class="num">פרק 8 מתוך 9</span><h2>הקמה וניהול: איפה הקוד רץ</h2><p>מי מקים את הקישור, באיזה סדר, ומה קורה בתקלה.</p>
+      <div class="chips"><span class="chip-label">רכיבים בפרק:</span><a class="chip" href="#g-nvlcore" data-term="nvlcore"><bdi dir="ltr">NVLink core library</bdi></a><a class="chip" href="#g-gsprm" data-term="gsprm"><bdi dir="ltr">GSP-RM</bdi></a><a class="chip" href="#g-minion" data-term="minion"><bdi dir="ltr">MINION</bdi></a><a class="chip" href="#g-training" data-term="training"><bdi dir="ltr">Link training</bdi></a><a class="chip" href="#g-linkstates" data-term="linkstates"><bdi dir="ltr">Link states</bdi></a><a class="chip" href="#g-xid74" data-term="xid74"><bdi dir="ltr">Xid 74</bdi></a><a class="chip" href="#g-smi" data-term="smi"><bdi dir="ltr">nvidia-smi</bdi></a></div></div><article class="step" id="s34">
+    <div class="step-top"><span class="step-num">34/43</span><span>שלב</span></div>
+    <h3>כשנתונים עוברים ב-<bdi dir="ltr">NVLink</bdi>, איזה קוד רץ על כל <bdi dir="ltr">packet</bdi>?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span>קוד ב-<bdi dir="ltr">GSP</bdi></span></li><li><span class="let">ב</span><span>קוד ב-<bdi dir="ltr">MINION</bdi></span></li><li><span class="let">ג</span><span>הדרייבר ב-<bdi dir="ltr">CPU</bdi></span></li><li><span class="let">ד</span><span>שום קוד, רק חומרה</span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ד</p>
+      <h4>הסבר מפורט</h4><p>המסלול <a class="term" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi></a> ← <a class="term" href="#g-l2" data-term="l2"><bdi dir="ltr">L2 cache</bdi></a> ← <a class="term" href="#g-hshub" data-term="hshub"><bdi dir="ltr">HSHUB</bdi></a> ← <a class="term" href="#g-tl" data-term="tl"><bdi dir="ltr">Transaction layer</bdi></a> ← <a class="term" href="#g-dl" data-term="dl"><bdi dir="ltr">Data link layer</bdi></a> ← <a class="term" href="#g-phy" data-term="phy"><bdi dir="ltr">PHY / SerDes</bdi></a> הוא כולו חומרה. קוד על כל <bdi dir="ltr">packet</bdi> היה מאט פי אלפים. הקוד מקים את הקישור, מגדיר אותו, ומגיב לשגיאות ולשינויי חשמל. זו העבודה של מהנדס/ת קושחה.</p>
+      <h4>למה לא האחרות</h4><p class="why-not"><a class="term" href="#g-gsp" data-term="gsp"><bdi dir="ltr">GSP</bdi></a>, <a class="term" href="#g-minion" data-term="minion"><bdi dir="ltr">MINION</bdi></a> וה-<a class="term" href="#g-driver" data-term="driver"><bdi dir="ltr">Driver</bdi></a> מריצים קוד <bdi dir="ltr">NVLink</bdi>, אבל רק בהקמה ובתקלות.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-hshub" data-term="hshub"><bdi dir="ltr">HSHUB</bdi><small>הרכזת שמחברת את ה-<bdi dir="ltr">L2</bdi> לקישורים.</small></a><a class="chip" href="#g-tl" data-term="tl"><bdi dir="ltr">Transaction layer</bdi><small>השכבה העליונה של הפרוטוקול.</small></a><a class="chip" href="#g-dl" data-term="dl"><bdi dir="ltr">Data link layer</bdi><small>השכבה שהופכת חוט רועש לחוט שנראה בלי שגיאות.</small></a><a class="chip" href="#g-phy" data-term="phy"><bdi dir="ltr">PHY / SerDes</bdi><small>המעגלים ששולחים וקולטים ביטים על החוטים.</small></a></div>
+    </details>
+  </article><article class="step" id="s35">
+    <div class="step-top"><span class="step-num">35/43</span><span>שלב</span></div>
+    <h3>מה זה <bdi dir="ltr">MINION</bdi>?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span>שם של שבב <bdi dir="ltr">NVSwitch</bdi></span></li><li><span class="let">ב</span><span>חלק מה-<bdi dir="ltr">L2</bdi></span></li><li><span class="let">ג</span><span>בקר <bdi dir="ltr">Falcon</bdi> בכל <bdi dir="ltr">IOCTRL</bdi> שמריץ <bdi dir="ltr">microcode</bdi> להקמה ואימון של הקישור</span></li><li><span class="let">ד</span><span>כלי של <bdi dir="ltr">nvidia-smi</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ג</p>
+      <h4>הסבר מפורט</h4><p>כל <a class="term" href="#g-ioctrl" data-term="ioctrl"><bdi dir="ltr">IOCTRL</bdi></a> ב-<bdi dir="ltr">GPU</bdi> וב-<a class="term" href="#g-nvswitch" data-term="nvswitch"><bdi dir="ltr">NVSwitch</bdi></a> מכיל <a class="term" href="#g-minion" data-term="minion"><bdi dir="ltr">MINION</bdi></a>: מיקרו-בקר מסוג <bdi dir="ltr">Falcon</bdi>. הוא מבצע את הפקודות של <a class="term" href="#g-training" data-term="training"><bdi dir="ltr">Link training</bdi></a>: הדלקת ה-<a class="term" href="#g-phy" data-term="phy"><bdi dir="ltr">PHY / SerDes</bdi></a>, הפעלת ה-<bdi dir="ltr">lanes</bdi> והפעלת ה-<a class="term" href="#g-dl" data-term="dl"><bdi dir="ltr">Data link layer</bdi></a>. בקוד הפתוח: <bdi dir="ltr">kernel_minion_gv100.c</bdi> ו-<bdi dir="ltr">minion_lr10.c</bdi>.</p>
+      <h4>למה לא האחרות</h4><p class="why-not"><bdi dir="ltr">NVSwitch</bdi> הוא שבב שלם; <bdi dir="ltr">MINION</bdi> הוא בקר קטן בתוכו. הוא לא חלק מה-<bdi dir="ltr">L2</bdi> ולא כלי תוכנה.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-minion" data-term="minion"><bdi dir="ltr">MINION</bdi><small>מיקרו-בקר קטן בכל <bdi dir="ltr">IOCTRL</bdi>, וגם בכל <bdi dir="ltr">NVSwitch</bdi>.</small></a><a class="chip" href="#g-training" data-term="training"><bdi dir="ltr">Link training</bdi><small>התהליך שמביא קישור ממצב כבוי למהירות מלאה.</small></a><a class="chip" href="#g-ioctrl" data-term="ioctrl"><bdi dir="ltr">IOCTRL</bdi><small>בלוק החומרה של קבוצת <bdi dir="ltr">links</bdi>.</small></a></div>
+    </details>
+  </article><article class="step" id="s36">
+    <div class="step-top"><span class="step-num">36/43</span><span>שלב</span></div>
+    <h3>מה הסדר של מצבי הקישור בהקמה?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span><bdi dir="ltr">HS</bdi> ← <bdi dir="ltr">SAFE</bdi> ← <bdi dir="ltr">OFF</bdi></span></li><li><span class="let">ב</span><span><bdi dir="ltr">OFF</bdi> ← <bdi dir="ltr">SAFE</bdi> ← <bdi dir="ltr">HS</bdi></span></li><li><span class="let">ג</span><span><bdi dir="ltr">SAFE</bdi> ← <bdi dir="ltr">OFF</bdi> ← <bdi dir="ltr">HS</bdi></span></li><li><span class="let">ד</span><span><bdi dir="ltr">OFF</bdi> ← <bdi dir="ltr">HS</bdi> ← <bdi dir="ltr">SAFE</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ב</p>
+      <h4>הסבר מפורט</h4><p><a class="term" href="#g-linkstates" data-term="linkstates"><bdi dir="ltr">Link states</bdi></a>: <bdi dir="ltr">OFF</bdi> (כבוי), <bdi dir="ltr">SAFE</bdi> (מצב איטי ל-<a class="term" href="#g-training" data-term="training"><bdi dir="ltr">Link training</bdi></a>, הגדרות וגילוי מי בצד השני), <bdi dir="ltr">HS</bdi> (מהיר, מעביר תעבורה). שגיאות רבות מחזירות ל-<bdi dir="ltr">SAFE</bdi>. השמות מופיעים ב-<bdi dir="ltr">nvlink.h</bdi> בקוד הפתוח.</p>
+      <h4>למה לא האחרות</h4><p class="why-not">אי אפשר להגיע ל-<bdi dir="ltr">HS</bdi> לפני אימון ב-<bdi dir="ltr">SAFE</bdi>.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-linkstates" data-term="linkstates"><bdi dir="ltr">Link states</bdi><small>השלבים שהקישור עובר בהקמה.</small></a><a class="chip" href="#g-training" data-term="training"><bdi dir="ltr">Link training</bdi><small>התהליך שמביא קישור ממצב כבוי למהירות מלאה.</small></a></div>
+    </details>
+  </article><article class="step" id="s37">
+    <div class="step-top"><span class="step-num">37/43</span><span>שלב</span></div>
+    <h3>מה הסדר הנכון של ההקמה, בקיצור?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span><bdi dir="ltr">Fabric Manager</bdi> ← <bdi dir="ltr">SM</bdi> ← <bdi dir="ltr">L2</bdi></span></li><li><span class="let">ב</span><span>הדרייבר ← <bdi dir="ltr">GSP-RM</bdi> מפעיל <bdi dir="ltr">MINION</bdi> ← <bdi dir="ltr">MINION</bdi> מאמן ← גילוי הצד השני ← מעבר ל-<bdi dir="ltr">HS</bdi> ותכנות <bdi dir="ltr">HSHUB</bdi></span></li><li><span class="let">ג</span><span><bdi dir="ltr">MINION</bdi> ← אפליקציה ← <bdi dir="ltr">PCIe</bdi></span></li><li><span class="let">ד</span><span>שום קוד לא רץ בהקמה</span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ב</p>
+      <h4>הסבר מפורט</h4><p>בפשטות: ה-<a class="term" href="#g-driver" data-term="driver"><bdi dir="ltr">Driver</bdi></a> שולח <bdi dir="ltr">RPC</bdi> ל-<a class="term" href="#g-gsprm" data-term="gsprm"><bdi dir="ltr">GSP-RM</bdi></a>. <bdi dir="ltr">GSP-RM</bdi> טוען ומפעיל את ה-<a class="term" href="#g-minion" data-term="minion"><bdi dir="ltr">MINION</bdi></a>. <bdi dir="ltr">MINION</bdi> מריץ את פקודות ה-<a class="term" href="#g-training" data-term="training"><bdi dir="ltr">Link training</bdi></a>, והקישור עולה ל-<bdi dir="ltr">SAFE</bdi>. ה-<a class="term" href="#g-nvlcore" data-term="nvlcore"><bdi dir="ltr">NVLink core library</bdi></a> מגלה מי בצד השני ומצמיד את הקצוות. ואז הדרייבר מבקש מ-<bdi dir="ltr">GSP-RM</bdi> לעבור ל-<bdi dir="ltr">HS</bdi> ולתכנת את ה-<a class="term" href="#g-hshub" data-term="hshub"><bdi dir="ltr">HSHUB</bdi></a>. הסדר המדויק משתנה לפי דור וגרסה.</p>
+      <h4>למה לא האחרות</h4><p class="why-not">האפשרויות האחרות מערבבות יחידות שלא משתתפות בהקמה. ההקמה היא בדיוק המקום שבו הקוד רץ.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-nvlcore" data-term="nvlcore"><bdi dir="ltr">NVLink core library</bdi><small>קוד בדרייבר שמנהל את כל ה-<bdi dir="ltr">links</bdi>.</small></a><a class="chip" href="#g-gsprm" data-term="gsprm"><bdi dir="ltr">GSP-RM</bdi><small>החלק של הדרייבר שעבר לרוץ כקושחה על ה-<bdi dir="ltr">GSP</bdi>.</small></a><a class="chip" href="#g-minion" data-term="minion"><bdi dir="ltr">MINION</bdi><small>מיקרו-בקר קטן בכל <bdi dir="ltr">IOCTRL</bdi>, וגם בכל <bdi dir="ltr">NVSwitch</bdi>.</small></a><a class="chip" href="#g-hshub" data-term="hshub"><bdi dir="ltr">HSHUB</bdi><small>הרכזת שמחברת את ה-<bdi dir="ltr">L2</bdi> לקישורים.</small></a></div>
+    </details>
+  </article><article class="step" id="s38">
+    <div class="step-top"><span class="step-num">38/43</span><span>שלב</span></div>
+    <h3>במערכת עם <bdi dir="ltr">GSP</bdi>, מי מתכנת בפועל את ה-<bdi dir="ltr">HSHUB</bdi>?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span><bdi dir="ltr">GSP-RM</bdi>, אחרי שהדרייבר שולח לו <bdi dir="ltr">RPC</bdi></span></li><li><span class="let">ב</span><span>ה-<bdi dir="ltr">SM</bdi></span></li><li><span class="let">ג</span><span><bdi dir="ltr">Fabric Manager</bdi></span></li><li><span class="let">ד</span><span>ה-<bdi dir="ltr">BIOS</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: א</p>
+      <h4>הסבר מפורט</h4><p>בקובץ <bdi dir="ltr">kernel_nvlink.c</bdi> בקוד הפתוח, הצד של ה-<bdi dir="ltr">CPU</bdi> קורא ל-<bdi dir="ltr">knvlinkExecGspRmRpc</bdi>, וההערה אומרת שזה <bdi dir="ltr">RPC</bdi> ל-<a class="term" href="#g-gsprm" data-term="gsprm"><bdi dir="ltr">GSP-RM</bdi></a> כדי לתכנת את רגיסטרי ה-<a class="term" href="#g-hshub" data-term="hshub"><bdi dir="ltr">HSHUB</bdi></a>. ה-<bdi dir="ltr">CPU</bdi> מחליט, ה-<bdi dir="ltr">GSP</bdi> מבצע.</p>
+      <h4>למה לא האחרות</h4><p class="why-not">ה-<bdi dir="ltr">SM</bdi> מריץ קוד משתמש. <a class="term" href="#g-fm" data-term="fm"><bdi dir="ltr">Fabric Manager</bdi></a> מגדיר ניתוב ב-<bdi dir="ltr">NVSwitch</bdi>. ה-<bdi dir="ltr">BIOS</bdi> לא מתכנת <bdi dir="ltr">NVLink</bdi>.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-gsprm" data-term="gsprm"><bdi dir="ltr">GSP-RM</bdi><small>החלק של הדרייבר שעבר לרוץ כקושחה על ה-<bdi dir="ltr">GSP</bdi>.</small></a><a class="chip" href="#g-hshub" data-term="hshub"><bdi dir="ltr">HSHUB</bdi><small>הרכזת שמחברת את ה-<bdi dir="ltr">L2</bdi> לקישורים.</small></a><a class="chip" href="#g-driver" data-term="driver"><bdi dir="ltr">Driver</bdi><small>מודול בקרנל של לינוקס שמנהל את ה-<bdi dir="ltr">GPU</bdi> מצד ה-<bdi dir="ltr">CPU</bdi>.</small></a></div>
+    </details>
+  </article><article class="step" id="s39">
+    <div class="step-top"><span class="step-num">39/43</span><span>שלב</span></div>
+    <h3>שגיאות ממשיכות גם אחרי <bdi dir="ltr">replay</bdi> ועוברות סף. מה רואים?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span><bdi dir="ltr">Xid 13</bdi></span></li><li><span class="let">ב</span><span>שום דבר</span></li><li><span class="let">ג</span><span>תמיד <bdi dir="ltr">kernel panic</bdi></span></li><li><span class="let">ד</span><span><bdi dir="ltr">Xid 74</bdi> בלוג של הדרייבר</span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ד</p>
+      <h4>הסבר מפורט</h4><p>כש-<a class="term" href="#g-replay" data-term="replay"><bdi dir="ltr">Replay buffer</bdi></a> לא מספיק, הקישור עובר להתאוששות: אימון מחדש, ואם זה לא עוזר, הוא יורד. הדרייבר רושם <a class="term" href="#g-xid74" data-term="xid74"><bdi dir="ltr">Xid 74</bdi></a> <bdi dir="ltr">(NVLink Error)</bdi>. מוני שגיאות: <a class="term" href="#g-smi" data-term="smi"><bdi dir="ltr">nvidia-smi nvlink -e</bdi></a>. תפקיד הקושחה: לקבוע ספים, להחליט מתי לאמן מחדש ומתי להוריד, ולדווח.</p>
+      <h4>למה לא האחרות</h4><p class="why-not"><bdi dir="ltr">Xid 13</bdi> הוא שגיאת מנוע גרפי. תקלה כזו כן נרשמת. <bdi dir="ltr">kernel panic</bdi> לא קורה בגלל שגיאת קישור.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-xid74" data-term="xid74"><bdi dir="ltr">Xid 74</bdi><small>קוד השגיאה שהדרייבר רושם על תקלת <bdi dir="ltr">NVLink</bdi>.</small></a><a class="chip" href="#g-smi" data-term="smi"><bdi dir="ltr">nvidia-smi</bdi><small>כלי שמציג מצב של <bdi dir="ltr">GPU</bdi>-ים.</small></a><a class="chip" href="#g-replay" data-term="replay"><bdi dir="ltr">Replay buffer</bdi><small>עותק של <bdi dir="ltr">flits</bdi> שנשלחו ועוד לא אושרו.</small></a></div>
+    </details>
+  </article></section><section class="sec" id="ch9"><div class="sec-head"><span class="num">פרק 9 מתוך 9</span><h2><bdi dir="ltr">NVSwitch</bdi> ומערכות גדולות</h2><p>איך מחברים <bdi dir="ltr">8 GPU</bdi>-ים ויותר, ומה המתג יודע לעשות.</p>
+      <div class="chips"><span class="chip-label">רכיבים בפרק:</span><a class="chip" href="#g-nvswitch" data-term="nvswitch"><bdi dir="ltr">NVSwitch</bdi></a><a class="chip" href="#g-nport" data-term="nport"><bdi dir="ltr">NPORT</bdi></a><a class="chip" href="#g-soe" data-term="soe"><bdi dir="ltr">SOE</bdi></a><a class="chip" href="#g-fm" data-term="fm"><bdi dir="ltr">Fabric Manager</bdi></a><a class="chip" href="#g-sharp" data-term="sharp"><bdi dir="ltr">NVLink SHARP</bdi></a></div></div><article class="step" id="s40">
+    <div class="step-top"><span class="step-num">40/43</span><span>שלב</span></div>
+    <h3>ב-<bdi dir="ltr">HGX H100</bdi> יש <bdi dir="ltr">8 GPU</bdi>-ים ו-<bdi dir="ltr">4</bdi> שבבי <bdi dir="ltr">NVSwitch</bdi>. איך כל <bdi dir="ltr">GPU</bdi> מחלק את <bdi dir="ltr">18</bdi> ה-<bdi dir="ltr">links</bdi> שלו?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span>כל <bdi dir="ltr">18</bdi> לשבב אחד</span></li><li><span class="let">ב</span><span><bdi dir="ltr">6, 6, 6, 0</bdi></span></li><li><span class="let">ג</span><span><bdi dir="ltr">5, 4, 4, 5</bdi>: חלק לכל אחד מארבעת השבבים</span></li><li><span class="let">ד</span><span><bdi dir="ltr">2</bdi> לכל <bdi dir="ltr">GPU</bdi> אחר</span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ג</p>
+      <h4>הסבר מפורט</h4><p><bdi dir="ltr">5 + 4 + 4 + 5</bdi> = <bdi dir="ltr">18</bdi>. כל <bdi dir="ltr">GPU</bdi> מחובר לכל ארבעת ה-<a class="term" href="#g-nvswitch" data-term="nvswitch">מתגים</a>, ולכל מתג יש <bdi dir="ltr">64</bdi> פורטים. כל זוג <bdi dir="ltr">GPU</bdi>-ים מקבל <bdi dir="ltr">900 GB/s</bdi> בקפיצה אחת. <a class="term" href="#g-fm" data-term="fm"><bdi dir="ltr">Fabric Manager</bdi></a> מגדיר את הניתוב. החלוקה <bdi dir="ltr">5/4/4/5</bdi> מגיעה ממקור חיצוני ולא ממסמך של <bdi dir="ltr">NVIDIA</bdi>.</p>
+      <h4>למה לא האחרות</h4><p class="why-not">מתג אחד היה צוואר בקבוק. <bdi dir="ltr">6/6/6/0</bdi> משאיר מתג ריק.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-nvswitch" data-term="nvswitch"><bdi dir="ltr">NVSwitch</bdi><small>שבב מתג שכל ה-<bdi dir="ltr">GPU</bdi>-ים מתחברים אליו.</small></a><a class="chip" href="#g-fm" data-term="fm"><bdi dir="ltr">Fabric Manager</bdi><small>תוכנה ב-<bdi dir="ltr">user space</bdi> במחשב המארח, במערכות שיש בהן <a class="term" href="#g-nvswitch" data-term="nvswitch"><bdi dir="ltr">NVSwitch</bdi></a>.</small></a></div>
+    </details>
+  </article><article class="step" id="s41">
+    <div class="step-top"><span class="step-num">41/43</span><span>שלב</span></div>
+    <h3>מה התפקיד של <bdi dir="ltr">NPORT</bdi> ושל <bdi dir="ltr">SOE</bdi> בתוך ה-<bdi dir="ltr">NVSwitch</bdi>?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span><bdi dir="ltr">NPORT</bdi>: זיכרון · <bdi dir="ltr">SOE</bdi>: חישוב</span></li><li><span class="let">ב</span><span><bdi dir="ltr">NPORT</bdi>: ממשק <bdi dir="ltr">PCIe</bdi> · <bdi dir="ltr">SOE</bdi>: מטמון</span></li><li><span class="let">ג</span><span><bdi dir="ltr">NPORT</bdi>: מנתב <bdi dir="ltr">packets</bdi> לפורט של <bdi dir="ltr">GPU</bdi> היעד · <bdi dir="ltr">SOE</bdi>: בקר שמריץ את הקושחה של המתג</span></li><li><span class="let">ד</span><span>שניהם חלק מה-<bdi dir="ltr">HBM</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ג</p>
+      <h4>הסבר מפורט</h4><p><a class="term" href="#g-nport" data-term="nport"><bdi dir="ltr">NPORT</bdi></a> מקבל <bdi dir="ltr">packets</bdi> ושולח כל אחד לפורט שמוביל ל-<bdi dir="ltr">GPU</bdi> היעד, לפי טבלאות ש-<a class="term" href="#g-fm" data-term="fm"><bdi dir="ltr">Fabric Manager</bdi></a> הגדיר. <a class="term" href="#g-soe" data-term="soe"><bdi dir="ltr">SOE</bdi></a> הוא בקר שמריץ קושחה במתג, למשל לטמפרטורה ולכבלים. במתג יש גם <a class="term" href="#g-minion" data-term="minion"><bdi dir="ltr">MINIONs</bdi></a> שמאמנים את הקישורים, בדיוק כמו ב-<bdi dir="ltr">GPU</bdi>.</p>
+      <h4>למה לא האחרות</h4><p class="why-not">למתג אין <bdi dir="ltr">HBM</bdi> ואין <bdi dir="ltr">SM</bdi>-ים. התפקידים באפשרויות האחרות לא נכונים.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-nport" data-term="nport"><bdi dir="ltr">NPORT</bdi><small>פורט <bdi dir="ltr">NVLink</bdi> בתוך ה-<bdi dir="ltr">NVSwitch</bdi>.</small></a><a class="chip" href="#g-soe" data-term="soe"><bdi dir="ltr">SOE</bdi><small>בקר שמריץ קושחה בתוך ה-<bdi dir="ltr">NVSwitch</bdi>.</small></a><a class="chip" href="#g-minion" data-term="minion"><bdi dir="ltr">MINION</bdi><small>מיקרו-בקר קטן בכל <bdi dir="ltr">IOCTRL</bdi>, וגם בכל <bdi dir="ltr">NVSwitch</bdi>.</small></a></div>
+    </details>
+  </article><article class="step" id="s42">
+    <div class="step-top"><span class="step-num">42/43</span><span>שלב</span></div>
+    <h3>מה עושה <bdi dir="ltr">Fabric Manager</bdi>?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span>מריץ <bdi dir="ltr">kernels</bdi></span></li><li><span class="let">ב</span><span>מגדיר פעם אחת את הניתוב במתגים במערכות עם <bdi dir="ltr">NVSwitch</bdi></span></li><li><span class="let">ג</span><span>מתקן שגיאות <bdi dir="ltr">CRC</bdi></span></li><li><span class="let">ד</span><span>מחליף את הדרייבר</span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: ב</p>
+      <h4>הסבר מפורט</h4><p><a class="term" href="#g-fm" data-term="fm"><bdi dir="ltr">Fabric Manager</bdi></a> היא תוכנה ב-<bdi dir="ltr">user space</bdi> במחשב המארח. בהפעלה היא מגדירה ב-<a class="term" href="#g-nvswitch" data-term="nvswitch"><bdi dir="ltr">NVSwitch</bdi></a> איזה פורט מוביל לאיזה <bdi dir="ltr">GPU</bdi>. אחרי זה התעבורה זורמת בחומרה, בלי <bdi dir="ltr">Fabric Manager</bdi>.</p>
+      <h4>למה לא האחרות</h4><p class="why-not"><bdi dir="ltr">kernels</bdi> רצים על ה-<bdi dir="ltr">SM. CRC</bdi> מטופל ב-<a class="term" href="#g-dl" data-term="dl"><bdi dir="ltr">Data link layer</bdi></a>. <bdi dir="ltr">Fabric Manager</bdi> עובד לצד הדרייבר, לא במקומו.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-fm" data-term="fm"><bdi dir="ltr">Fabric Manager</bdi><small>תוכנה ב-<bdi dir="ltr">user space</bdi> במחשב המארח, במערכות שיש בהן <a class="term" href="#g-nvswitch" data-term="nvswitch"><bdi dir="ltr">NVSwitch</bdi></a>.</small></a><a class="chip" href="#g-nvswitch" data-term="nvswitch"><bdi dir="ltr">NVSwitch</bdi><small>שבב מתג שכל ה-<bdi dir="ltr">GPU</bdi>-ים מתחברים אליו.</small></a><a class="chip" href="#g-nport" data-term="nport"><bdi dir="ltr">NPORT</bdi><small>פורט <bdi dir="ltr">NVLink</bdi> בתוך ה-<bdi dir="ltr">NVSwitch</bdi>.</small></a></div>
+    </details>
+  </article><article class="step" id="s43">
+    <div class="step-top"><span class="step-num">43/43</span><span>שלב</span></div>
+    <h3>מה עושה <bdi dir="ltr">NVLink SHARP</bdi>?</h3>
+    <ol class="opts static"><li><span class="let">א</span><span>המתג סוכם בעצמו את הנתונים ב-<bdi dir="ltr">all-reduce</bdi> ושולח את התוצאה לכולם</span></li><li><span class="let">ב</span><span>מצפין את הקישור</span></li><li><span class="let">ג</span><span>מגביר את מהירות ה-<bdi dir="ltr">lanes</bdi></span></li><li><span class="let">ד</span><span>מחליף את ה-<bdi dir="ltr">L2</bdi></span></li></ol>
+    <details class="ans">
+      <summary>להציג תשובה והסבר</summary>
+      <p class="right-ans">התשובה הנכונה: א</p>
+      <h4>הסבר מפורט</h4><p><bdi dir="ltr">all-reduce</bdi> הוא פעולה נפוצה באימון <bdi dir="ltr">AI</bdi>: לחבר מערך בין כל ה-<bdi dir="ltr">GPU</bdi>-ים. עם <a class="term" href="#g-sharp" data-term="sharp"><bdi dir="ltr">NVLink SHARP</bdi></a>, כל <bdi dir="ltr">GPU</bdi> שולח את החלק שלו פעם אחת ל-<a class="term" href="#g-nvswitch" data-term="nvswitch"><bdi dir="ltr">NVSwitch</bdi></a>, המתג סוכם ושולח את התוצאה לכולם. עוברים פחות נתונים בכל <bdi dir="ltr">link</bdi>.</p>
+      <h4>למה לא האחרות</h4><p class="why-not"><bdi dir="ltr">SHARP</bdi> לא קשור להצפנה, ל-<bdi dir="ltr">lanes</bdi> או ל-<bdi dir="ltr">L2</bdi>. הוא מעביר חישוב לתוך המתג.</p>
+      <h4>רכיבים לחזור עליהם</h4><div class="chips review"><a class="chip" href="#g-sharp" data-term="sharp"><bdi dir="ltr">NVLink SHARP</bdi><small>יכולת של ה-<bdi dir="ltr">NVSwitch</bdi> לחבר נתונים בעצמו.</small></a><a class="chip" href="#g-nvswitch" data-term="nvswitch"><bdi dir="ltr">NVSwitch</bdi><small>שבב מתג שכל ה-<bdi dir="ltr">GPU</bdi>-ים מתחברים אליו.</small></a></div>
+    </details>
+  </article></section>
+    <section class="sec" id="glossary"><div class="sec-head"><span class="num">מילון</span><h2>כל הרכיבים: מה כל אחד עושה במערכת</h2><p>מסודר לפי אזור בשבב. "מופיע בשלבים" מחזיר לשלבים שמדברים על הרכיב.</p></div><div class="gloss-area"><h3>המחשב המארח <bdi dir="ltr">(CPU)</bdi></h3><article class="entry" id="g-host"><div class="entry-head"><b id=""><bdi dir="ltr">CPU host</bdi></b><span>המעבד הראשי של המחשב</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>המעבד הרגיל של השרת, שה-<bdi dir="ltr">GPU</bdi> מחובר אליו.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>מריץ את האפליקציה, את מערכת ההפעלה ואת ה-<a class="term" href="#g-driver" data-term="driver"><bdi dir="ltr">Driver</bdi></a>. הוא שולח ל-<bdi dir="ltr">GPU</bdi> פקודות ונתונים דרך <a class="term" href="#g-pcie" data-term="pcie"><bdi dir="ltr">PCIe</bdi></a>, ומחכה לסימן שהעבודה הסתיימה.</dd>
+      <dt>איפה הוא נמצא</dt><dd>מחוץ ל-<bdi dir="ltr">GPU</bdi>. מחובר אליו דרך <bdi dir="ltr">PCIe</bdi>.</dd>
+    </dl>
+    
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-driver" data-term="driver"><bdi dir="ltr">Driver</bdi></a><a class="chip" href="#g-pcie" data-term="pcie"><bdi dir="ltr">PCIe</bdi></a><a class="chip" href="#g-cuda" data-term="cuda"><bdi dir="ltr">CUDA</bdi></a></div>
+    
+    </article><article class="entry" id="g-driver"><div class="entry-head"><b id=""><bdi dir="ltr">Driver</bdi></b><span>הדרייבר של <bdi dir="ltr">NVIDIA (nvidia.ko)</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>מודול בקרנל של לינוקס שמנהל את ה-<bdi dir="ltr">GPU</bdi> מצד ה-<bdi dir="ltr">CPU</bdi>.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>מקצה זיכרון ובונה <a class="term" href="#g-pagetable" data-term="pagetable"><bdi dir="ltr">page tables</bdi></a>, כותב פקודות ל-<a class="term" href="#g-pushbuffer" data-term="pushbuffer"><bdi dir="ltr">Pushbuffer</bdi></a> ומצלצל ב-<a class="term" href="#g-doorbell" data-term="doorbell"><bdi dir="ltr">Doorbell</bdi></a>. בצד ה-<bdi dir="ltr">NVLink</bdi> הוא מחזיק את ה-<a class="term" href="#g-nvlcore" data-term="nvlcore"><bdi dir="ltr">NVLink core library</bdi></a> ושולח בקשות <bdi dir="ltr">(RPC)</bdi> ל-<a class="term" href="#g-gsprm" data-term="gsprm"><bdi dir="ltr">GSP-RM</bdi></a>, שמבצע אותן על החומרה.</dd>
+      <dt>איפה הוא נמצא</dt><dd>רץ על ה-<bdi dir="ltr">CPU</bdi>, בקרנל.</dd>
+    </dl>
+    <div class="facts"><span>open-gpu-kernel-modules</span><span>CPU-RM ↔ GSP-RM</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-gsprm" data-term="gsprm"><bdi dir="ltr">GSP-RM</bdi></a><a class="chip" href="#g-nvlcore" data-term="nvlcore"><bdi dir="ltr">NVLink core library</bdi></a><a class="chip" href="#g-pagetable" data-term="pagetable"><bdi dir="ltr">Page table</bdi></a><a class="chip" href="#g-pushbuffer" data-term="pushbuffer"><bdi dir="ltr">Pushbuffer</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s5" data-goto="5">5</a> · <a href="#s22" data-goto="22">22</a> · <a href="#s38" data-goto="38">38</a></p>
+    </article><article class="entry" id="g-cuda"><div class="entry-head"><b id=""><bdi dir="ltr">CUDA</bdi></b><span>פלטפורמת התכנות של <bdi dir="ltr">NVIDIA</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>הספריות וה-<bdi dir="ltr">runtime</bdi> שבעזרתם כותבים קוד ל-<bdi dir="ltr">GPU</bdi>.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>מתרגמת קריאות של האפליקציה, כמו <bdi dir="ltr">cudaMemcpy</bdi> או הרצה של <a class="term" href="#g-kernel" data-term="kernel"><bdi dir="ltr">Kernel</bdi></a>, לבקשות ל-<a class="term" href="#g-driver" data-term="driver"><bdi dir="ltr">Driver</bdi></a>.</dd>
+      <dt>איפה הוא נמצא</dt><dd>רצה על ה-<bdi dir="ltr">CPU</bdi>, בתוך האפליקציה.</dd>
+    </dl>
+    <div class="facts"><span>cudaMemcpy</span><span>kernel launch</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-kernel" data-term="kernel"><bdi dir="ltr">Kernel</bdi></a><a class="chip" href="#g-driver" data-term="driver"><bdi dir="ltr">Driver</bdi></a></div>
+    
+    </article><article class="entry" id="g-fm"><div class="entry-head"><b id=""><bdi dir="ltr">Fabric Manager</bdi></b><span>מנהל הרשת של <bdi dir="ltr">NVSwitch</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>תוכנה ב-<bdi dir="ltr">user space</bdi> במחשב המארח, במערכות שיש בהן <a class="term" href="#g-nvswitch" data-term="nvswitch"><bdi dir="ltr">NVSwitch</bdi></a>.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>מגדירה פעם אחת, בהפעלה, את הניתוב במתגים: איזה פורט מוביל לאיזה <bdi dir="ltr">GPU</bdi>. היא לא משתתפת בכל גישה לזיכרון.</dd>
+      <dt>איפה הוא נמצא</dt><dd>רצה על ה-<bdi dir="ltr">CPU</bdi>, ב-<bdi dir="ltr">user space</bdi>.</dd>
+    </dl>
+    
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-nvswitch" data-term="nvswitch"><bdi dir="ltr">NVSwitch</bdi></a><a class="chip" href="#g-nport" data-term="nport"><bdi dir="ltr">NPORT</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s40" data-goto="40">40</a> · <a href="#s42" data-goto="42">42</a></p>
+    </article><article class="entry" id="g-smi"><div class="entry-head"><b id=""><bdi dir="ltr">nvidia-smi</bdi></b><span>כלי ניטור בשורת פקודה</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>כלי שמציג מצב של <bdi dir="ltr">GPU</bdi>-ים.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>בצד ה-<bdi dir="ltr">NVLink: nvidia-smi nvlink -s</bdi> מציג את מצב ה-<bdi dir="ltr">links</bdi>, ו- <bdi dir="ltr">nvidia-smi nvlink -e</bdi> מציג מוני שגיאות. שימושי לבדוק את עבודת הקושחה.</dd>
+      <dt>איפה הוא נמצא</dt><dd>רץ על ה-<bdi dir="ltr">CPU</bdi>.</dd>
+    </dl>
+    <div class="facts"><span>nvidia-smi nvlink -s</span><span>nvidia-smi nvlink -e</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-xid74" data-term="xid74"><bdi dir="ltr">Xid 74</bdi></a><a class="chip" href="#g-crc" data-term="crc"><bdi dir="ltr">CRC</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s39" data-goto="39">39</a></p>
+    </article></div><div class="gloss-area"><h3>בקרה: איך עבודה נכנסת</h3><article class="entry" id="g-pcie"><div class="entry-head"><b id=""><bdi dir="ltr">PCIe</bdi></b><span>ממשק <bdi dir="ltr">PCI Express</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>החיבור בין ה-<bdi dir="ltr">GPU</bdi> ל-<bdi dir="ltr">CPU</bdi>.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>דרכו עוברים: פקודות מה-<a class="term" href="#g-driver" data-term="driver"><bdi dir="ltr">Driver</bdi></a>, העתקות של <a class="term" href="#g-copyeng" data-term="copyeng"><bdi dir="ltr">Copy engine</bdi></a>, בקשות <bdi dir="ltr">RPC</bdi> ל-<a class="term" href="#g-gsprm" data-term="gsprm"><bdi dir="ltr">GSP-RM</bdi></a>, וקריאות של ה-<bdi dir="ltr">CPU</bdi> לרגיסטרים של ה-<bdi dir="ltr">GPU</bdi>. הוא איטי בהרבה מ-<a class="term" href="#g-nvlink" data-term="nvlink"><bdi dir="ltr">NVLink</bdi></a>, ולכן לא משמש להחלפת נתונים כבדה בין <bdi dir="ltr">GPU</bdi>-ים.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בראש ה-<bdi dir="ltr">GPU</bdi>, בצד הבקרה.</dd>
+    </dl>
+    <div class="facts"><span>Gen5 ×16</span><span>64 GB/s לכל כיוון</span><span>128 GB/s בשני הכיוונים</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-host" data-term="host"><bdi dir="ltr">CPU host</bdi></a><a class="chip" href="#g-frontend" data-term="frontend"><bdi dir="ltr">Front end</bdi></a><a class="chip" href="#g-copyeng" data-term="copyeng"><bdi dir="ltr">Copy engine</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s4" data-goto="4">4</a> · <a href="#s8" data-goto="8">8</a> · <a href="#s22" data-goto="22">22</a></p>
+    </article><article class="entry" id="g-frontend"><div class="entry-head"><b id=""><bdi dir="ltr">Front end</bdi></b><span>היחידה שקוראת פקודות</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>היחידה בראש ה-<bdi dir="ltr">GPU</bdi> שקוראת את רשימת הפקודות.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>אחרי שה-<a class="term" href="#g-driver" data-term="driver"><bdi dir="ltr">Driver</bdi></a> מצלצל ב-<a class="term" href="#g-doorbell" data-term="doorbell"><bdi dir="ltr">Doorbell</bdi></a>, ה-<bdi dir="ltr">front end</bdi> שולף פקודות מה-<a class="term" href="#g-pushbuffer" data-term="pushbuffer"><bdi dir="ltr">Pushbuffer</bdi></a>, מפענח אותן ומעביר כל אחת ליחידה הנכונה: עבודת חישוב ל-<a class="term" href="#g-wd" data-term="wd"><bdi dir="ltr">Work distributor</bdi></a>, העתקות ל-<a class="term" href="#g-copyeng" data-term="copyeng"><bdi dir="ltr">Copy engine</bdi></a>. בסוף הוא כותב <a class="term" href="#g-semaphore" data-term="semaphore"><bdi dir="ltr">Semaphore</bdi></a> כדי לסמן שהעבודה הסתיימה.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בראש ה-<bdi dir="ltr">GPU</bdi>, ליד <bdi dir="ltr">PCIe</bdi>.</dd>
+    </dl>
+    
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-pushbuffer" data-term="pushbuffer"><bdi dir="ltr">Pushbuffer</bdi></a><a class="chip" href="#g-doorbell" data-term="doorbell"><bdi dir="ltr">Doorbell</bdi></a><a class="chip" href="#g-wd" data-term="wd"><bdi dir="ltr">Work distributor</bdi></a><a class="chip" href="#g-semaphore" data-term="semaphore"><bdi dir="ltr">Semaphore</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s6" data-goto="6">6</a> · <a href="#s9" data-goto="9">9</a></p>
+    </article><article class="entry" id="g-pushbuffer"><div class="entry-head"><b id=""><bdi dir="ltr">Pushbuffer</bdi></b><span><bdi dir="ltr">buffer</bdi> של פקודות</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>אזור בזיכרון שבו הדרייבר כותב רשימת פקודות ל-<bdi dir="ltr">GPU</bdi>.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>זו &quot;רשימת המשימות&quot; של ה-<bdi dir="ltr">GPU</bdi>. ה-<a class="term" href="#g-driver" data-term="driver"><bdi dir="ltr">Driver</bdi></a> כותב אליה, וה-<a class="term" href="#g-frontend" data-term="frontend"><bdi dir="ltr">Front end</bdi></a> קורא ממנה.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בזיכרון (של ה-<bdi dir="ltr">CPU</bdi> או של ה-<bdi dir="ltr">GPU</bdi>).</dd>
+    </dl>
+    
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-frontend" data-term="frontend"><bdi dir="ltr">Front end</bdi></a><a class="chip" href="#g-doorbell" data-term="doorbell"><bdi dir="ltr">Doorbell</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s5" data-goto="5">5</a></p>
+    </article><article class="entry" id="g-doorbell"><div class="entry-head"><b id=""><bdi dir="ltr">Doorbell</bdi></b><span>רגיסטר &quot;פעמון&quot;</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>רגיסטר שהדרייבר כותב אליו.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>כתיבה אליו אומרת ל-<a class="term" href="#g-frontend" data-term="frontend"><bdi dir="ltr">Front end</bdi></a>: &quot;יש פקודות חדשות ב-<a class="term" href="#g-pushbuffer" data-term="pushbuffer"><bdi dir="ltr">Pushbuffer</bdi></a>&quot;. כך ה-<bdi dir="ltr">GPU</bdi> לא צריך לבדוק כל הזמן.</dd>
+      <dt>איפה הוא נמצא</dt><dd>רגיסטר ב-<bdi dir="ltr">GPU</bdi>, שה-<bdi dir="ltr">CPU</bdi> כותב אליו דרך <bdi dir="ltr">PCIe</bdi>.</dd>
+    </dl>
+    
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-frontend" data-term="frontend"><bdi dir="ltr">Front end</bdi></a><a class="chip" href="#g-pushbuffer" data-term="pushbuffer"><bdi dir="ltr">Pushbuffer</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s5" data-goto="5">5</a></p>
+    </article><article class="entry" id="g-wd"><div class="entry-head"><b id=""><bdi dir="ltr">Work distributor</bdi></b><span>מחלק העבודה <bdi dir="ltr">(GigaThread engine)</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>החלק של ה-<bdi dir="ltr">front end</bdi> שמחלק עבודת חישוב.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>מקבל <a class="term" href="#g-grid" data-term="grid"><bdi dir="ltr">Grid</bdi></a> של <a class="term" href="#g-block" data-term="block"><bdi dir="ltr">thread blocks</bdi></a> ושולח כל <bdi dir="ltr">block</bdi> ל-<a class="term" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi></a> שיש בו מקום. כשבלוק מסתיים, הוא שולח את הבא.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בצד הבקרה, בין ה-<bdi dir="ltr">front end</bdi> ל-<bdi dir="ltr">GPC</bdi>-ים.</dd>
+    </dl>
+    
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-frontend" data-term="frontend"><bdi dir="ltr">Front end</bdi></a><a class="chip" href="#g-block" data-term="block"><bdi dir="ltr">Thread block</bdi></a><a class="chip" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s6" data-goto="6">6</a> · <a href="#s7" data-goto="7">7</a></p>
+    </article><article class="entry" id="g-copyeng"><div class="entry-head"><b id=""><bdi dir="ltr">Copy engine</bdi></b><span>מנוע העתקה <bdi dir="ltr">(DMA)</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>מנוע שמעתיק בלוקים גדולים של זיכרון.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>מעביר נתונים בין זיכרון המחשב ל-<a class="term" href="#g-hbm" data-term="hbm"><bdi dir="ltr">HBM</bdi></a> דרך <a class="term" href="#g-pcie" data-term="pcie"><bdi dir="ltr">PCIe</bdi></a>, ובין <bdi dir="ltr">GPU</bdi>-ים דרך <a class="term" href="#g-nvlink" data-term="nvlink"><bdi dir="ltr">NVLink</bdi></a>, בלי להעסיק את ה-<bdi dir="ltr">SM</bdi>-ים. לכן העתקה וחישוב יכולים לרוץ במקביל. <bdi dir="ltr">cudaMemcpy</bdi> משתמש בו.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בצד הבקרה של ה-<bdi dir="ltr">GPU</bdi>.</dd>
+    </dl>
+    <div class="facts"><span>DMA</span><span>cudaMemcpy</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-pcie" data-term="pcie"><bdi dir="ltr">PCIe</bdi></a><a class="chip" href="#g-hbm" data-term="hbm"><bdi dir="ltr">HBM</bdi></a><a class="chip" href="#g-nvlink" data-term="nvlink"><bdi dir="ltr">NVLink</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s6" data-goto="6">6</a> · <a href="#s8" data-goto="8">8</a></p>
+    </article><article class="entry" id="g-semaphore"><div class="entry-head"><b id=""><bdi dir="ltr">Semaphore</bdi></b><span>סימן סיום</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>כתיבה של ערך לזיכרון כדי לסמן שמשהו הסתיים.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>כשכל ה-<bdi dir="ltr">blocks</bdi> של <a class="term" href="#g-kernel" data-term="kernel"><bdi dir="ltr">Kernel</bdi></a> מסתיימים, ה-<a class="term" href="#g-frontend" data-term="frontend"><bdi dir="ltr">Front end</bdi></a> כותב <bdi dir="ltr">semaphore</bdi>. ה-<bdi dir="ltr">CPU</bdi> רואה את הערך ויודע שהתוצאות מוכנות.</dd>
+      <dt>איפה הוא נמצא</dt><dd>ערך בזיכרון שה-<bdi dir="ltr">CPU</bdi> וה-<bdi dir="ltr">GPU</bdi> רואים.</dd>
+    </dl>
+    
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-frontend" data-term="frontend"><bdi dir="ltr">Front end</bdi></a><a class="chip" href="#g-host" data-term="host"><bdi dir="ltr">CPU host</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s9" data-goto="9">9</a></p>
+    </article></div><div class="gloss-area"><h3>תוכנה: מה שמתכנתים כותבים</h3><article class="entry" id="g-kernel"><div class="entry-head"><b id=""><bdi dir="ltr">Kernel</bdi></b><span>פונקציה שרצה על ה-<bdi dir="ltr">GPU</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>פונקציה שמתכנתים כותבים ב-<bdi dir="ltr">CUDA</bdi>, ורצה על ה-<bdi dir="ltr">GPU</bdi> באלפי עותקים.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>הרצה אחת של <bdi dir="ltr">kernel</bdi> נקראת <a class="term" href="#g-grid" data-term="grid"><bdi dir="ltr">Grid</bdi></a>. כל עותק הוא <a class="term" href="#g-thread" data-term="thread"><bdi dir="ltr">Thread</bdi></a>, וכל אחד עובד על פיסת נתונים אחרת.</dd>
+      <dt>איפה הוא נמצא</dt><dd>קוד שרץ על ה-<bdi dir="ltr">SM</bdi>-ים.</dd>
+    </dl>
+    
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-grid" data-term="grid"><bdi dir="ltr">Grid</bdi></a><a class="chip" href="#g-thread" data-term="thread"><bdi dir="ltr">Thread</bdi></a><a class="chip" href="#g-cuda" data-term="cuda"><bdi dir="ltr">CUDA</bdi></a></div>
+    
+    </article><article class="entry" id="g-grid"><div class="entry-head"><b id=""><bdi dir="ltr">Grid</bdi></b><span>הרצה אחת של <bdi dir="ltr">kernel</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>כל ה-<bdi dir="ltr">thread blocks</bdi> של הרצה אחת של <a class="term" href="#g-kernel" data-term="kernel"><bdi dir="ltr">Kernel</bdi></a>.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>הגריד רץ על כל ה-<bdi dir="ltr">GPU</bdi>: ה-<a class="term" href="#g-wd" data-term="wd"><bdi dir="ltr">Work distributor</bdi></a> מפזר את ה-<a class="term" href="#g-block" data-term="block"><bdi dir="ltr">blocks</bdi></a> שלו על כל ה-<bdi dir="ltr">SM</bdi>-ים.</dd>
+      <dt>איפה הוא נמצא</dt><dd>כל ה-<bdi dir="ltr">GPU</bdi>.</dd>
+    </dl>
+    
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-block" data-term="block"><bdi dir="ltr">Thread block</bdi></a><a class="chip" href="#g-wd" data-term="wd"><bdi dir="ltr">Work distributor</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s7" data-goto="7">7</a></p>
+    </article><article class="entry" id="g-block"><div class="entry-head"><b id=""><bdi dir="ltr">Thread block</bdi></b><span>בלוק של <bdi dir="ltr">threads</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>קבוצה של עד <bdi dir="ltr">1,024 threads</bdi>.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>בלוק רץ על <a class="term" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi></a> אחד ונשאר בו עד שהוא מסתיים. לכן ה-<bdi dir="ltr">threads</bdi> שלו יכולים לחלוק <a class="term" href="#g-l1" data-term="l1"><bdi dir="ltr">shared memory</bdi></a> ולהסתנכרן.</dd>
+      <dt>איפה הוא נמצא</dt><dd><bdi dir="ltr">SM</bdi> אחד.</dd>
+    </dl>
+    <div class="facts"><span>עד 1,024 threads</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi></a><a class="chip" href="#g-warp" data-term="warp"><bdi dir="ltr">Warp</bdi></a><a class="chip" href="#g-l1" data-term="l1"><bdi dir="ltr">L1 / shared memory</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s7" data-goto="7">7</a> · <a href="#s13" data-goto="13">13</a></p>
+    </article><article class="entry" id="g-warp"><div class="entry-head"><b id=""><bdi dir="ltr">Warp</bdi></b><span>קבוצה של <bdi dir="ltr">32 threads</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd><bdi dir="ltr">32 threads</bdi> שמריצים תמיד את אותה הוראה יחד.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>יחידת העבודה האמיתית של החומרה. ה-<a class="term" href="#g-scheduler" data-term="scheduler"><bdi dir="ltr">Warp scheduler</bdi></a> בוחר <bdi dir="ltr">warp</bdi> מוכן בכל מחזור ושולח הוראה אחת ל-<bdi dir="ltr">32</bdi> הנתיבים שלו. <bdi dir="ltr">warp</bdi> רץ על <a class="term" href="#g-partition" data-term="partition"><bdi dir="ltr">SM partition</bdi></a> אחד.</dd>
+      <dt>איפה הוא נמצא</dt><dd><bdi dir="ltr">SM partition</bdi> אחד.</dd>
+    </dl>
+    <div class="facts"><span>32 threads</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-scheduler" data-term="scheduler"><bdi dir="ltr">Warp scheduler</bdi></a><a class="chip" href="#g-partition" data-term="partition"><bdi dir="ltr">SM partition</bdi></a><a class="chip" href="#g-thread" data-term="thread"><bdi dir="ltr">Thread</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s1" data-goto="1">1</a> · <a href="#s12" data-goto="12">12</a> · <a href="#s14" data-goto="14">14</a></p>
+    </article><article class="entry" id="g-thread"><div class="entry-head"><b id=""><bdi dir="ltr">Thread</bdi></b><span>עותק אחד של ה-<bdi dir="ltr">kernel</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>עותק אחד של ה-<a class="term" href="#g-kernel" data-term="kernel"><bdi dir="ltr">Kernel</bdi></a>, שעובד על פיסת נתונים אחת.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>כל <bdi dir="ltr">thread</bdi> רץ על <a class="term" href="#g-fp32" data-term="fp32">נתיב</a> אחד, ויש לו רגיסטרים פרטיים ב-<a class="term" href="#g-regfile" data-term="regfile"><bdi dir="ltr">Register file</bdi></a>.</dd>
+      <dt>איפה הוא נמצא</dt><dd>נתיב אחד ב-<bdi dir="ltr">SM</bdi>.</dd>
+    </dl>
+    
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-warp" data-term="warp"><bdi dir="ltr">Warp</bdi></a><a class="chip" href="#g-fp32" data-term="fp32"><bdi dir="ltr">FP32 lanes</bdi></a><a class="chip" href="#g-regfile" data-term="regfile"><bdi dir="ltr">Register file</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s12" data-goto="12">12</a></p>
+    </article></div><div class="gloss-area"><h3>חישוב: <bdi dir="ltr">GPC, SM</bdi> ומה שבתוכם</h3><article class="entry" id="g-gpc"><div class="entry-head"><b id=""><bdi dir="ltr">GPC</bdi></b><span><bdi dir="ltr">Graphics Processing Cluster</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>קבוצה גדולה של יחידות חישוב.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>מקבצת <a class="term" href="#g-tpc" data-term="tpc"><bdi dir="ltr">TPC</bdi>-ים</a>, ובתוכם את ה-<a class="term" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi>-ים</a>. העבודה מגיעה אליה מה-<a class="term" href="#g-wd" data-term="wd"><bdi dir="ltr">Work distributor</bdi></a>.</dd>
+      <dt>איפה הוא נמצא</dt><dd>באמצע השבב. ב-<bdi dir="ltr">GH100</bdi> המלא יש <bdi dir="ltr">8</bdi>.</dd>
+    </dl>
+    <div class="facts"><span>8 GPC</span><span>9 TPC בכל GPC</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-tpc" data-term="tpc"><bdi dir="ltr">TPC</bdi></a><a class="chip" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s2" data-goto="2">2</a> · <a href="#s10" data-goto="10">10</a></p>
+    </article><article class="entry" id="g-tpc"><div class="entry-head"><b id=""><bdi dir="ltr">TPC</bdi></b><span><bdi dir="ltr">Texture Processing Cluster</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>זוג <bdi dir="ltr">SM</bdi>-ים.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>יחידת ביניים בהיררכיה: <bdi dir="ltr">GPC</bdi> ← <bdi dir="ltr">TPC</bdi> ← <bdi dir="ltr">SM</bdi>. בכל <bdi dir="ltr">TPC</bdi> יש <bdi dir="ltr">2</bdi> <a class="term" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi></a>.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בתוך <bdi dir="ltr">GPC</bdi>.</dd>
+    </dl>
+    <div class="facts"><span>2 SM</span><span>72 TPC בשבב המלא</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-gpc" data-term="gpc"><bdi dir="ltr">GPC</bdi></a><a class="chip" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s2" data-goto="2">2</a> · <a href="#s10" data-goto="10">10</a></p>
+    </article><article class="entry" id="g-sm"><div class="entry-head"><b id=""><bdi dir="ltr">SM</bdi></b><span><bdi dir="ltr">Streaming Multiprocessor</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>הליבה של ה-<bdi dir="ltr">GPU</bdi>, שמריצה את ה-<bdi dir="ltr">threads</bdi>.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>מקבל <a class="term" href="#g-block" data-term="block"><bdi dir="ltr">thread blocks</bdi></a> ומריץ את ה-<a class="term" href="#g-warp" data-term="warp"><bdi dir="ltr">warps</bdi></a> שלהם. בתוכו <bdi dir="ltr">4</bdi> <a class="term" href="#g-partition" data-term="partition"><bdi dir="ltr">partitions</bdi></a> ו-<bdi dir="ltr">256 KB</bdi> של <a class="term" href="#g-l1" data-term="l1"><bdi dir="ltr">L1 / shared memory</bdi></a>.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בתוך <bdi dir="ltr">TPC</bdi>. ב-<bdi dir="ltr">H100 SXM5</bdi> פעילים <bdi dir="ltr">132</bdi> (בשבב המלא <bdi dir="ltr">144</bdi>).</dd>
+    </dl>
+    <div class="facts"><span>132 SM פעילים</span><span>128 FP32 lanes</span><span>4 tensor cores</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-tpc" data-term="tpc"><bdi dir="ltr">TPC</bdi></a><a class="chip" href="#g-partition" data-term="partition"><bdi dir="ltr">SM partition</bdi></a><a class="chip" href="#g-l1" data-term="l1"><bdi dir="ltr">L1 / shared memory</bdi></a><a class="chip" href="#g-block" data-term="block"><bdi dir="ltr">Thread block</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s1" data-goto="1">1</a> · <a href="#s2" data-goto="2">2</a> · <a href="#s10" data-goto="10">10</a> · <a href="#s13" data-goto="13">13</a> · <a href="#s15" data-goto="15">15</a> · <a href="#s17" data-goto="17">17</a></p>
+    </article><article class="entry" id="g-partition"><div class="entry-head"><b id=""><bdi dir="ltr">SM partition</bdi></b><span>רבע של <bdi dir="ltr">SM</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>אחד מארבעת החלקים של <bdi dir="ltr">SM</bdi>.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>בכל <bdi dir="ltr">partition</bdi> יש <a class="term" href="#g-scheduler" data-term="scheduler"><bdi dir="ltr">Warp scheduler</bdi></a>, <a class="term" href="#g-regfile" data-term="regfile"><bdi dir="ltr">Register file</bdi></a> של <bdi dir="ltr">64 KB, 32</bdi> <a class="term" href="#g-fp32" data-term="fp32">נתיבי <bdi dir="ltr">FP32</bdi></a> ו-<a class="term" href="#g-tensor" data-term="tensor"><bdi dir="ltr">Tensor core</bdi></a> אחד. כל <bdi dir="ltr">warp</bdi> רץ על <bdi dir="ltr">partition</bdi> אחד.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בתוך <bdi dir="ltr">SM. 4</bdi> בכל <bdi dir="ltr">SM</bdi>.</dd>
+    </dl>
+    <div class="facts"><span>64 KB registers</span><span>32 FP32</span><span>1 tensor core</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-scheduler" data-term="scheduler"><bdi dir="ltr">Warp scheduler</bdi></a><a class="chip" href="#g-regfile" data-term="regfile"><bdi dir="ltr">Register file</bdi></a><a class="chip" href="#g-fp32" data-term="fp32"><bdi dir="ltr">FP32 lanes</bdi></a><a class="chip" href="#g-tensor" data-term="tensor"><bdi dir="ltr">Tensor core</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s10" data-goto="10">10</a> · <a href="#s11" data-goto="11">11</a></p>
+    </article><article class="entry" id="g-scheduler"><div class="entry-head"><b id=""><bdi dir="ltr">Warp scheduler</bdi></b><span>מתזמן ה-<bdi dir="ltr">warps</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>היחידה שבוחרת איזה <bdi dir="ltr">warp</bdi> ירוץ עכשיו.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>מחזיקה הרבה <a class="term" href="#g-warp" data-term="warp"><bdi dir="ltr">warps</bdi></a>. כש-<bdi dir="ltr">warp</bdi> אחד מחכה לזיכרון, היא עוברת מיד לאחר, וכך הנתיבים לא עומדים. זה &quot;הסתרת השהיה&quot; <bdi dir="ltr">(latency hiding)</bdi>.</dd>
+      <dt>איפה הוא נמצא</dt><dd>אחד בכל <bdi dir="ltr">SM partition</bdi>.</dd>
+    </dl>
+    <div class="facts"><span>latency hiding</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-warp" data-term="warp"><bdi dir="ltr">Warp</bdi></a><a class="chip" href="#g-partition" data-term="partition"><bdi dir="ltr">SM partition</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s11" data-goto="11">11</a> · <a href="#s12" data-goto="12">12</a> · <a href="#s14" data-goto="14">14</a></p>
+    </article><article class="entry" id="g-regfile"><div class="entry-head"><b id=""><bdi dir="ltr">Register file</bdi></b><span>קובץ הרגיסטרים</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>האחסון המהיר ביותר על השבב.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>מחזיק את המשתנים הפרטיים של כל <a class="term" href="#g-thread" data-term="thread"><bdi dir="ltr">Thread</bdi></a>. כיוון שהרגיסטרים של כל ה-<bdi dir="ltr">warps</bdi> נמצאים בו כל הזמן, המעבר בין <bdi dir="ltr">warps</bdi> כמעט לא עולה כלום.</dd>
+      <dt>איפה הוא נמצא</dt><dd><bdi dir="ltr">64 KB</bdi> בכל <bdi dir="ltr">partition, 256 KB</bdi> בכל <bdi dir="ltr">SM</bdi>.</dd>
+    </dl>
+    <div class="facts"><span>256 KB / SM</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-partition" data-term="partition"><bdi dir="ltr">SM partition</bdi></a><a class="chip" href="#g-scheduler" data-term="scheduler"><bdi dir="ltr">Warp scheduler</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s11" data-goto="11">11</a> · <a href="#s14" data-goto="14">14</a> · <a href="#s19" data-goto="19">19</a></p>
+    </article><article class="entry" id="g-fp32"><div class="entry-head"><b id=""><bdi dir="ltr">FP32 lanes</bdi></b><span>נתיבי חישוב <bdi dir="ltr">(CUDA cores)</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>יחידות שמבצעות חישוב רגיל במספרים.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>כל נתיב מריץ <a class="term" href="#g-thread" data-term="thread"><bdi dir="ltr">Thread</bdi></a> אחד. <bdi dir="ltr">32</bdi> נתיבים מבצעים יחד הוראה אחת של <a class="term" href="#g-warp" data-term="warp"><bdi dir="ltr">Warp</bdi></a>.</dd>
+      <dt>איפה הוא נמצא</dt><dd><bdi dir="ltr">32</bdi> בכל <bdi dir="ltr">partition, 128</bdi> בכל <bdi dir="ltr">SM</bdi>.</dd>
+    </dl>
+    <div class="facts"><span>128 / SM</span><span>≈16,900 ב-H100</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-partition" data-term="partition"><bdi dir="ltr">SM partition</bdi></a><a class="chip" href="#g-thread" data-term="thread"><bdi dir="ltr">Thread</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s1" data-goto="1">1</a> · <a href="#s11" data-goto="11">11</a></p>
+    </article><article class="entry" id="g-tensor"><div class="entry-head"><b id=""><bdi dir="ltr">Tensor core</bdi></b><span>ליבת מטריצות</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>יחידה שמכפילה מטריצות קטנות בצעד אחד.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>עושה את רוב העבודה באימון והרצה של מודלי <bdi dir="ltr">AI</bdi>, שבנויים מכפל מטריצות.</dd>
+      <dt>איפה הוא נמצא</dt><dd>אחד בכל <bdi dir="ltr">partition, 4</bdi> בכל <bdi dir="ltr">SM</bdi>.</dd>
+    </dl>
+    <div class="facts"><span>4 / SM</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-partition" data-term="partition"><bdi dir="ltr">SM partition</bdi></a><a class="chip" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s11" data-goto="11">11</a> · <a href="#s15" data-goto="15">15</a></p>
+    </article></div><div class="gloss-area"><h3>זיכרון</h3><article class="entry" id="g-l1"><div class="entry-head"><b id=""><bdi dir="ltr">L1 / shared memory</bdi></b><span>זיכרון מהיר של ה-<bdi dir="ltr">SM</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>זיכרון מהיר בתוך כל <bdi dir="ltr">SM</bdi>.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>חלק ממנו משמש <bdi dir="ltr">cache</bdi>, וחלק משמש <bdi dir="ltr">shared memory</bdi>: &quot;דף טיוטה&quot; שה-<bdi dir="ltr">threads</bdi> של <a class="term" href="#g-block" data-term="block"><bdi dir="ltr">Thread block</bdi></a> אחד חולקים. גישה ל-<bdi dir="ltr">L1</bdi> מהירה בהרבה מגישה ל-<a class="term" href="#g-l2" data-term="l2"><bdi dir="ltr">L2 cache</bdi></a>.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בתוך כל <bdi dir="ltr">SM. 256 KB</bdi>.</dd>
+    </dl>
+    <div class="facts"><span>256 KB / SM</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi></a><a class="chip" href="#g-l2" data-term="l2"><bdi dir="ltr">L2 cache</bdi></a><a class="chip" href="#g-block" data-term="block"><bdi dir="ltr">Thread block</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s3" data-goto="3">3</a> · <a href="#s13" data-goto="13">13</a> · <a href="#s18" data-goto="18">18</a> · <a href="#s19" data-goto="19">19</a></p>
+    </article><article class="entry" id="g-mmu"><div class="entry-head"><b id=""><bdi dir="ltr">MMU</bdi></b><span><bdi dir="ltr">Memory Management Unit</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>יחידה שמתרגמת כתובות.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>תוכנות עובדות עם כתובות וירטואליות. ה-<bdi dir="ltr">MMU</bdi> מוצא את המיקום האמיתי בעזרת <a class="term" href="#g-pagetable" data-term="pagetable"><bdi dir="ltr">page tables</bdi></a>, וחוסם גישה אסורה. רשומה יכולה להצביע לזיכרון של <bdi dir="ltr">GPU</bdi> אחר, וכך <bdi dir="ltr">load</bdi> רגיל יוצא ב-<a class="term" href="#g-nvlink" data-term="nvlink"><bdi dir="ltr">NVLink</bdi></a>.</dd>
+      <dt>איפה הוא נמצא</dt><dd>במסלול מה-<bdi dir="ltr">SM</bdi> לזיכרון.</dd>
+    </dl>
+    <div class="facts"><span>virtual → physical</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-pagetable" data-term="pagetable"><bdi dir="ltr">Page table</bdi></a><a class="chip" href="#g-l2" data-term="l2"><bdi dir="ltr">L2 cache</bdi></a><a class="chip" href="#g-nvlink" data-term="nvlink"><bdi dir="ltr">NVLink</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s16" data-goto="16">16</a> · <a href="#s25" data-goto="25">25</a></p>
+    </article><article class="entry" id="g-pagetable"><div class="entry-head"><b id=""><bdi dir="ltr">Page table</bdi></b><span>טבלת דפים</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>טבלה שממפה כתובות וירטואליות למיקום אמיתי.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>ה-<a class="term" href="#g-driver" data-term="driver"><bdi dir="ltr">Driver</bdi></a> בונה אותה. ה-<a class="term" href="#g-mmu" data-term="mmu"><bdi dir="ltr">MMU</bdi></a> קורא ממנה. היא קובעת אם כתובת נמצאת ב-<bdi dir="ltr">HBM</bdi> המקומי או אצל <bdi dir="ltr">GPU</bdi> שכן.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בזיכרון.</dd>
+    </dl>
+    
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-mmu" data-term="mmu"><bdi dir="ltr">MMU</bdi></a><a class="chip" href="#g-driver" data-term="driver"><bdi dir="ltr">Driver</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s16" data-goto="16">16</a> · <a href="#s25" data-goto="25">25</a></p>
+    </article><article class="entry" id="g-xbar"><div class="entry-head"><b id=""><bdi dir="ltr">Crossbar</bdi></b><span>רשת פנימית</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>הרשת שמחברת את ה-<bdi dir="ltr">SM</bdi>-ים לזיכרון.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>מחברת כל <a class="term" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi></a> לכל חלק <bdi dir="ltr">(slice)</bdi> של ה-<a class="term" href="#g-l2" data-term="l2"><bdi dir="ltr">L2 cache</bdi></a>, כך שכל <bdi dir="ltr">SM</bdi> יכול להגיע לכל כתובת.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בין ה-<bdi dir="ltr">GPC</bdi>-ים ל-<bdi dir="ltr">L2</bdi>.</dd>
+    </dl>
+    
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-sm" data-term="sm"><bdi dir="ltr">SM</bdi></a><a class="chip" href="#g-l2" data-term="l2"><bdi dir="ltr">L2 cache</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s17" data-goto="17">17</a> · <a href="#s18" data-goto="18">18</a></p>
+    </article><article class="entry" id="g-l2"><div class="entry-head"><b id=""><bdi dir="ltr">L2 cache</bdi></b><span>זיכרון מטמון משותף</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>זיכרון מטמון אחד לכל השבב.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>נקודת המפגש: כל גישה לזיכרון, מקומית או מרוחקת, עוברת בו. בפספוס, בקשה מקומית ממשיכה ל-<a class="term" href="#g-memctrl" data-term="memctrl"><bdi dir="ltr">Memory controller</bdi></a>, ובקשה לזיכרון של <bdi dir="ltr">GPU</bdi> אחר ממשיכה ל-<a class="term" href="#g-hshub" data-term="hshub"><bdi dir="ltr">HSHUB</bdi></a>. גם בקשות מ-<bdi dir="ltr">GPU</bdi> שכן מקבלות תשובה מה-<bdi dir="ltr">L2</bdi>.</dd>
+      <dt>איפה הוא נמצא</dt><dd>באמצע השבב, בשני חצאים.</dd>
+    </dl>
+    <div class="facts"><span>50 MB</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-xbar" data-term="xbar"><bdi dir="ltr">Crossbar</bdi></a><a class="chip" href="#g-memctrl" data-term="memctrl"><bdi dir="ltr">Memory controller</bdi></a><a class="chip" href="#g-hshub" data-term="hshub"><bdi dir="ltr">HSHUB</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s3" data-goto="3">3</a> · <a href="#s17" data-goto="17">17</a> · <a href="#s18" data-goto="18">18</a> · <a href="#s19" data-goto="19">19</a> · <a href="#s26" data-goto="26">26</a></p>
+    </article><article class="entry" id="g-memctrl"><div class="entry-head"><b id=""><bdi dir="ltr">Memory controller</bdi></b><span>בקר זיכרון</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>יחידה שקוראת וכותבת ל-<bdi dir="ltr">HBM</bdi>.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>מקבלת בקשות מה-<a class="term" href="#g-l2" data-term="l2"><bdi dir="ltr">L2 cache</bdi></a> שלא נמצאו בו, ומדברת עם שבבי ה-<a class="term" href="#g-hbm" data-term="hbm"><bdi dir="ltr">HBM</bdi></a>.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בשולי השבב, ליד ה-<bdi dir="ltr">HBM</bdi>.</dd>
+    </dl>
+    
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-l2" data-term="l2"><bdi dir="ltr">L2 cache</bdi></a><a class="chip" href="#g-hbm" data-term="hbm"><bdi dir="ltr">HBM</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s3" data-goto="3">3</a> · <a href="#s18" data-goto="18">18</a></p>
+    </article><article class="entry" id="g-hbm"><div class="entry-head"><b id=""><bdi dir="ltr">HBM</bdi></b><span><bdi dir="ltr">High Bandwidth Memory</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>הזיכרון הגדול של ה-<bdi dir="ltr">GPU</bdi>.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>מחזיק את הנתונים של התוכנית. גדול ומהיר, אבל איטי יותר מה-<a class="term" href="#g-l2" data-term="l2"><bdi dir="ltr">L2 cache</bdi></a>. ה-<a class="term" href="#g-copyeng" data-term="copyeng"><bdi dir="ltr">Copy engine</bdi></a> ממלא אותו.</dd>
+      <dt>איפה הוא נמצא</dt><dd>שבבים מוערמים ליד ה-<bdi dir="ltr">GPU</bdi>. ב-<bdi dir="ltr">H100 SXM5</bdi> יש <bdi dir="ltr">5</bdi> פעילים.</dd>
+    </dl>
+    <div class="facts"><span>80 GB</span><span>3.35 TB/s</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-memctrl" data-term="memctrl"><bdi dir="ltr">Memory controller</bdi></a><a class="chip" href="#g-l2" data-term="l2"><bdi dir="ltr">L2 cache</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s3" data-goto="3">3</a> · <a href="#s4" data-goto="4">4</a> · <a href="#s8" data-goto="8">8</a> · <a href="#s19" data-goto="19">19</a></p>
+    </article></div><div class="gloss-area"><h3>קושחה על ה-<bdi dir="ltr">GPU</bdi></h3><article class="entry" id="g-gsp"><div class="entry-head"><b id=""><bdi dir="ltr">GSP</bdi></b><span><bdi dir="ltr">GPU System Processor</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>מעבד <bdi dir="ltr">RISC-V</bdi> בתוך ה-<bdi dir="ltr">GPU</bdi>.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>מריץ את <a class="term" href="#g-gsprm" data-term="gsprm"><bdi dir="ltr">GSP-RM</bdi></a>, הקושחה שמאתחלת ומנהלת את השבב. זה ה&quot;בית&quot; של מהנדס/ת קושחה.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בצד הבקרה של ה-<bdi dir="ltr">GPU</bdi>.</dd>
+    </dl>
+    <div class="facts"><span>RISC-V</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-gsprm" data-term="gsprm"><bdi dir="ltr">GSP-RM</bdi></a><a class="chip" href="#g-pmu" data-term="pmu"><bdi dir="ltr">PMU</bdi></a><a class="chip" href="#g-sec2" data-term="sec2"><bdi dir="ltr">SEC2</bdi></a><a class="chip" href="#g-fsp" data-term="fsp"><bdi dir="ltr">FSP</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s20" data-goto="20">20</a></p>
+    </article><article class="entry" id="g-gsprm"><div class="entry-head"><b id=""><bdi dir="ltr">GSP-RM</bdi></b><span><bdi dir="ltr">Resource Manager</bdi> שרץ על ה-<bdi dir="ltr">GSP</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>החלק של הדרייבר שעבר לרוץ כקושחה על ה-<bdi dir="ltr">GSP</bdi>.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>ה-<a class="term" href="#g-driver" data-term="driver"><bdi dir="ltr">Driver</bdi></a> ב-<bdi dir="ltr">CPU</bdi> מחליט ושולח <bdi dir="ltr">RPC</bdi>, ו-<bdi dir="ltr">GSP-RM</bdi> מבצע על החומרה. למשל, הוא מתכנת את רגיסטרי ה-<a class="term" href="#g-hshub" data-term="hshub"><bdi dir="ltr">HSHUB</bdi></a> כשהקישור עולה.</dd>
+      <dt>איפה הוא נמצא</dt><dd>רץ על ה-<bdi dir="ltr">GSP</bdi>.</dd>
+    </dl>
+    <div class="facts"><span>gsp_*.bin</span><span>knvlinkExecGspRmRpc</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-gsp" data-term="gsp"><bdi dir="ltr">GSP</bdi></a><a class="chip" href="#g-driver" data-term="driver"><bdi dir="ltr">Driver</bdi></a><a class="chip" href="#g-hshub" data-term="hshub"><bdi dir="ltr">HSHUB</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s20" data-goto="20">20</a> · <a href="#s22" data-goto="22">22</a> · <a href="#s37" data-goto="37">37</a> · <a href="#s38" data-goto="38">38</a></p>
+    </article><article class="entry" id="g-pmu"><div class="entry-head"><b id=""><bdi dir="ltr">PMU</bdi></b><span><bdi dir="ltr">Power Management Unit</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>בקר קטן לניהול צריכת חשמל.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>מנהל שעונים ומתחים לפי העומס והטמפרטורה.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בצד הבקרה.</dd>
+    </dl>
+    
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-gsp" data-term="gsp"><bdi dir="ltr">GSP</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s21" data-goto="21">21</a></p>
+    </article><article class="entry" id="g-sec2"><div class="entry-head"><b id=""><bdi dir="ltr">SEC2</bdi></b><span>בקר אבטחה</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>בקר קטן למשימות אבטחה.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>מטפל בפעולות שדורשות אמון, כמו טעינה ובדיקה של קושחה.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בצד הבקרה.</dd>
+    </dl>
+    
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-gsp" data-term="gsp"><bdi dir="ltr">GSP</bdi></a><a class="chip" href="#g-fsp" data-term="fsp"><bdi dir="ltr">FSP</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s21" data-goto="21">21</a></p>
+    </article><article class="entry" id="g-fsp"><div class="entry-head"><b id=""><bdi dir="ltr">FSP</bdi></b><span><bdi dir="ltr">Firmware Security Processor</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>בקר אבטחה ב-<bdi dir="ltr">Hopper</bdi>.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>אחראי על אתחול מאובטח: בודק שהקושחה שנטענת אמיתית, לפני שהיא רצה <bdi dir="ltr">(root of trust)</bdi>.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בצד הבקרה.</dd>
+    </dl>
+    
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-gsp" data-term="gsp"><bdi dir="ltr">GSP</bdi></a><a class="chip" href="#g-sec2" data-term="sec2"><bdi dir="ltr">SEC2</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s21" data-goto="21">21</a></p>
+    </article></div><div class="gloss-area"><h3><bdi dir="ltr">NVLink</bdi>: הקישור בין <bdi dir="ltr">GPU</bdi>-ים</h3><article class="entry" id="g-nvlink"><div class="entry-head"><b id=""><bdi dir="ltr">NVLink</bdi></b><span>הקישור המהיר של <bdi dir="ltr">NVIDIA</bdi> בין <bdi dir="ltr">GPU</bdi>-ים</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>חיבור ישיר ומהיר בין <bdi dir="ltr">GPU</bdi>-ים, או בין <bdi dir="ltr">GPU</bdi> ל-<bdi dir="ltr">NVSwitch</bdi>.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>מעביר פעולות זיכרון רגילות <bdi dir="ltr">(read, write, atomic)</bdi> בין <bdi dir="ltr">GPU</bdi>-ים, כך ש-<bdi dir="ltr">GPU</bdi> שכן נראה כמו עוד זיכרון. בנוי מ-<a class="term" href="#g-link" data-term="link"><bdi dir="ltr">links</bdi></a>.</dd>
+      <dt>איפה הוא נמצא</dt><dd>יוצא מה-<a class="term" href="#g-hshub" data-term="hshub"><bdi dir="ltr">HSHUB</bdi></a> דרך בלוקי <a class="term" href="#g-ioctrl" data-term="ioctrl"><bdi dir="ltr">IOCTRL</bdi></a>.</dd>
+    </dl>
+    <div class="facts"><span>NVLink 4: 18 links</span><span>900 GB/s</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-link" data-term="link"><bdi dir="ltr">Link</bdi></a><a class="chip" href="#g-hshub" data-term="hshub"><bdi dir="ltr">HSHUB</bdi></a><a class="chip" href="#g-ioctrl" data-term="ioctrl"><bdi dir="ltr">IOCTRL</bdi></a><a class="chip" href="#g-nvswitch" data-term="nvswitch"><bdi dir="ltr">NVSwitch</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s4" data-goto="4">4</a> · <a href="#s23" data-goto="23">23</a></p>
+    </article><article class="entry" id="g-link"><div class="entry-head"><b id=""><bdi dir="ltr">Link</bdi></b><span>קישור אחד</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>חיבור אחד בין שני צדדים.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>כל <bdi dir="ltr">link</bdi> הוא שני <a class="term" href="#g-sublink" data-term="sublink"><bdi dir="ltr">sub-links</bdi></a> חד-כיווניים שעובדים במקביל. ב-<bdi dir="ltr">NVLink 4</bdi> כל <bdi dir="ltr">link</bdi> מעביר <bdi dir="ltr">25 GB/s</bdi> בכל כיוון.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בין שני <bdi dir="ltr">GPU</bdi>-ים, או בין <bdi dir="ltr">GPU</bdi> למתג.</dd>
+    </dl>
+    <div class="facts"><span>25 GB/s לכל כיוון (NVLink 4)</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-sublink" data-term="sublink"><bdi dir="ltr">Sub-link</bdi></a><a class="chip" href="#g-lane" data-term="lane"><bdi dir="ltr">Lane</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s23" data-goto="23">23</a> · <a href="#s24" data-goto="24">24</a> · <a href="#s27" data-goto="27">27</a></p>
+    </article><article class="entry" id="g-sublink"><div class="entry-head"><b id=""><bdi dir="ltr">Sub-link</bdi></b><span>חצי קישור, כיוון אחד</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>הכיוון האחד של <bdi dir="ltr">link</bdi>.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>מורכב מכמה <a class="term" href="#g-lane" data-term="lane"><bdi dir="ltr">lanes</bdi></a>. כל <a class="term" href="#g-flit" data-term="flit"><bdi dir="ltr">Flit</bdi></a> מתפזר על כל ה-<bdi dir="ltr">lanes</bdi> של ה-<bdi dir="ltr">sub-link</bdi> שלו.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בתוך <bdi dir="ltr">link. 2</bdi> בכל <bdi dir="ltr">link</bdi>.</dd>
+    </dl>
+    
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-link" data-term="link"><bdi dir="ltr">Link</bdi></a><a class="chip" href="#g-lane" data-term="lane"><bdi dir="ltr">Lane</bdi></a><a class="chip" href="#g-flit" data-term="flit"><bdi dir="ltr">Flit</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s24" data-goto="24">24</a></p>
+    </article><article class="entry" id="g-lane"><div class="entry-head"><b id=""><bdi dir="ltr">Lane</bdi></b><span>נתיב פיזי</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>זוג חוטים שמעביר ביטים בכיוון אחד.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>הרבה <bdi dir="ltr">lanes</bdi> יחד יוצרים <a class="term" href="#g-sublink" data-term="sublink"><bdi dir="ltr">Sub-link</bdi></a>. בכל דור כל <bdi dir="ltr">lane</bdi> מהיר יותר (בזכות <a class="term" href="#g-pam4" data-term="pam4"><bdi dir="ltr">PAM4</bdi></a>), אז צריך פחות <bdi dir="ltr">lanes</bdi>.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בשכבה הפיזית, יוצא מה-<a class="term" href="#g-phy" data-term="phy"><bdi dir="ltr">PHY / SerDes</bdi></a>.</dd>
+    </dl>
+    <div class="facts"><span>NVLink 1: 8 × 20 Gb/s</span><span>NVLink 4: 2 × 100 Gb/s</span><span>NVLink 5: 2 × 200 Gb/s</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-sublink" data-term="sublink"><bdi dir="ltr">Sub-link</bdi></a><a class="chip" href="#g-phy" data-term="phy"><bdi dir="ltr">PHY / SerDes</bdi></a><a class="chip" href="#g-pam4" data-term="pam4"><bdi dir="ltr">PAM4</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s24" data-goto="24">24</a> · <a href="#s33" data-goto="33">33</a></p>
+    </article><article class="entry" id="g-pam4"><div class="entry-head"><b id=""><bdi dir="ltr">PAM4</bdi></b><span>אפנון בארבע רמות</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>שיטה לשלוח <bdi dir="ltr">2</bdi> ביטים בכל סמל במקום ביט אחד.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>מכפילה את המהירות של כל <a class="term" href="#g-lane" data-term="lane"><bdi dir="ltr">Lane</bdi></a> באותו קצב סמלים. משמשת מ-<bdi dir="ltr">NVLink 4</bdi>.</dd>
+      <dt>איפה הוא נמצא</dt><dd>ב-<a class="term" href="#g-phy" data-term="phy"><bdi dir="ltr">PHY / SerDes</bdi></a>.</dd>
+    </dl>
+    <div class="facts"><span>2 bits / symbol</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-lane" data-term="lane"><bdi dir="ltr">Lane</bdi></a><a class="chip" href="#g-phy" data-term="phy"><bdi dir="ltr">PHY / SerDes</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s33" data-goto="33">33</a></p>
+    </article><article class="entry" id="g-hshub"><div class="entry-head"><b id=""><bdi dir="ltr">HSHUB</bdi></b><span><bdi dir="ltr">High-Speed Hub</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>הרכזת שמחברת את ה-<bdi dir="ltr">L2</bdi> לקישורים.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>כשה-<a class="term" href="#g-l2" data-term="l2"><bdi dir="ltr">L2 cache</bdi></a> מקבל בקשה לזיכרון של <bdi dir="ltr">GPU</bdi> אחר, ה-<bdi dir="ltr">HSHUB</bdi> בוחר באיזה <bdi dir="ltr">link</bdi> לשלוח אותה. <a class="term" href="#g-gsprm" data-term="gsprm"><bdi dir="ltr">GSP-RM</bdi></a> מתכנת אותו כשהקישור עולה.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בין ה-<bdi dir="ltr">L2</bdi> לבלוקי ה-<bdi dir="ltr">IOCTRL</bdi>.</dd>
+    </dl>
+    
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-l2" data-term="l2"><bdi dir="ltr">L2 cache</bdi></a><a class="chip" href="#g-ioctrl" data-term="ioctrl"><bdi dir="ltr">IOCTRL</bdi></a><a class="chip" href="#g-gsprm" data-term="gsprm"><bdi dir="ltr">GSP-RM</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s18" data-goto="18">18</a> · <a href="#s25" data-goto="25">25</a> · <a href="#s26" data-goto="26">26</a> · <a href="#s34" data-goto="34">34</a> · <a href="#s37" data-goto="37">37</a> · <a href="#s38" data-goto="38">38</a></p>
+    </article><article class="entry" id="g-ioctrl"><div class="entry-head"><b id=""><bdi dir="ltr">IOCTRL</bdi></b><span>בלוק קישור</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>בלוק החומרה של קבוצת <bdi dir="ltr">links</bdi>.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>מכיל את שכבות הקישור: <a class="term" href="#g-tl" data-term="tl"><bdi dir="ltr">Transaction layer</bdi></a>, <a class="term" href="#g-dl" data-term="dl"><bdi dir="ltr">Data link layer</bdi></a> ו-<a class="term" href="#g-phy" data-term="phy"><bdi dir="ltr">PHY / SerDes</bdi></a>, וגם <a class="term" href="#g-minion" data-term="minion"><bdi dir="ltr">MINION</bdi></a> שמקים את הקישור.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בשולי השבב, אחרי ה-<bdi dir="ltr">HSHUB</bdi>.</dd>
+    </dl>
+    
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-tl" data-term="tl"><bdi dir="ltr">Transaction layer</bdi></a><a class="chip" href="#g-dl" data-term="dl"><bdi dir="ltr">Data link layer</bdi></a><a class="chip" href="#g-phy" data-term="phy"><bdi dir="ltr">PHY / SerDes</bdi></a><a class="chip" href="#g-minion" data-term="minion"><bdi dir="ltr">MINION</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s26" data-goto="26">26</a> · <a href="#s28" data-goto="28">28</a> · <a href="#s35" data-goto="35">35</a></p>
+    </article><article class="entry" id="g-tl"><div class="entry-head"><b id=""><bdi dir="ltr">Transaction layer</bdi></b><span>שכבת הטרנזקציות <bdi dir="ltr">(NVLTLC)</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>השכבה העליונה של הפרוטוקול.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>הופכת בקשת זיכרון <bdi dir="ltr">(read, write, atomic)</bdi> ל-<bdi dir="ltr">packet</bdi> של <a class="term" href="#g-flit" data-term="flit"><bdi dir="ltr">flits</bdi></a>, ובצד השני מבצעת את הבקשה מול ה-<bdi dir="ltr">L2</bdi>.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בתוך <bdi dir="ltr">IOCTRL</bdi>.</dd>
+    </dl>
+    <div class="facts"><span>NVLTLC</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-dl" data-term="dl"><bdi dir="ltr">Data link layer</bdi></a><a class="chip" href="#g-flit" data-term="flit"><bdi dir="ltr">Flit</bdi></a><a class="chip" href="#g-ioctrl" data-term="ioctrl"><bdi dir="ltr">IOCTRL</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s28" data-goto="28">28</a> · <a href="#s34" data-goto="34">34</a></p>
+    </article><article class="entry" id="g-dl"><div class="entry-head"><b id=""><bdi dir="ltr">Data link layer</bdi></b><span>שכבת הקישור <bdi dir="ltr">(NVLDL)</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>השכבה שהופכת חוט רועש לחוט שנראה בלי שגיאות.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>מוסיפה <a class="term" href="#g-crc" data-term="crc"><bdi dir="ltr">CRC</bdi></a> ומספר <bdi dir="ltr">sequence</bdi> לכל <bdi dir="ltr">flit</bdi>, שומרת עותק ב-<a class="term" href="#g-replay" data-term="replay"><bdi dir="ltr">Replay buffer</bdi></a>, ומנהלת <a class="term" href="#g-credit" data-term="credit"><bdi dir="ltr">credits</bdi></a>. כל זה בחומרה.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בתוך <bdi dir="ltr">IOCTRL</bdi>, בין ה-<bdi dir="ltr">TL</bdi> ל-<bdi dir="ltr">PHY</bdi>.</dd>
+    </dl>
+    <div class="facts"><span>NVLDL</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-crc" data-term="crc"><bdi dir="ltr">CRC</bdi></a><a class="chip" href="#g-replay" data-term="replay"><bdi dir="ltr">Replay buffer</bdi></a><a class="chip" href="#g-credit" data-term="credit"><bdi dir="ltr">Credit</bdi></a><a class="chip" href="#g-tl" data-term="tl"><bdi dir="ltr">Transaction layer</bdi></a><a class="chip" href="#g-phy" data-term="phy"><bdi dir="ltr">PHY / SerDes</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s28" data-goto="28">28</a> · <a href="#s29" data-goto="29">29</a> · <a href="#s31" data-goto="31">31</a> · <a href="#s32" data-goto="32">32</a> · <a href="#s34" data-goto="34">34</a></p>
+    </article><article class="entry" id="g-phy"><div class="entry-head"><b id=""><bdi dir="ltr">PHY / SerDes</bdi></b><span>השכבה הפיזית</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>המעגלים ששולחים וקולטים ביטים על החוטים.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>הופכת <bdi dir="ltr">flits</bdi> לזרם ביטים מהיר על ה-<a class="term" href="#g-lane" data-term="lane"><bdi dir="ltr">lanes</bdi></a> <bdi dir="ltr">(serialize)</bdi>, ובצד השני משחזרת שעון ומיישרת את ה-<bdi dir="ltr">lanes</bdi>. צריכה <a class="term" href="#g-training" data-term="training"><bdi dir="ltr">Link training</bdi></a> לפני שהיא עובדת במהירות מלאה.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בתחתית ה-<bdi dir="ltr">IOCTRL</bdi>, מחוברת לחוטים.</dd>
+    </dl>
+    <div class="facts"><span>SerDes</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-lane" data-term="lane"><bdi dir="ltr">Lane</bdi></a><a class="chip" href="#g-pam4" data-term="pam4"><bdi dir="ltr">PAM4</bdi></a><a class="chip" href="#g-training" data-term="training"><bdi dir="ltr">Link training</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s28" data-goto="28">28</a> · <a href="#s33" data-goto="33">33</a> · <a href="#s34" data-goto="34">34</a></p>
+    </article><article class="entry" id="g-flit"><div class="entry-head"><b id=""><bdi dir="ltr">Flit</bdi></b><span><bdi dir="ltr">flow control unit</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>יחידת הנתונים הבסיסית של הקישור.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>זו היחידה שהקישור בודק עם <a class="term" href="#g-crc" data-term="crc"><bdi dir="ltr">CRC</bdi></a> ושולח שוב אם יש שגיאה. ב-<bdi dir="ltr">NVLink 1: flit</bdi> של <bdi dir="ltr">128</bdi> ביט, ו-<bdi dir="ltr">packet</bdi> של <bdi dir="ltr">header</bdi> ועוד עד <bdi dir="ltr">16 data flits (256</bdi> בתים).</dd>
+      <dt>איפה הוא נמצא</dt><dd>נוצר ב-<bdi dir="ltr">TL</bdi>, נבדק ב-<bdi dir="ltr">DL</bdi>.</dd>
+    </dl>
+    <div class="facts"><span>NVLink 1: 128 bit</span><span>256 B payload</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-tl" data-term="tl"><bdi dir="ltr">Transaction layer</bdi></a><a class="chip" href="#g-dl" data-term="dl"><bdi dir="ltr">Data link layer</bdi></a><a class="chip" href="#g-crc" data-term="crc"><bdi dir="ltr">CRC</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s30" data-goto="30">30</a></p>
+    </article><article class="entry" id="g-crc"><div class="entry-head"><b id=""><bdi dir="ltr">CRC</bdi></b><span>בדיקת שגיאות</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>סכום ביקורת שמגלה ביטים שהשתבשו.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>ה-<a class="term" href="#g-dl" data-term="dl"><bdi dir="ltr">Data link layer</bdi></a> מחשב <bdi dir="ltr">CRC</bdi> לכל <bdi dir="ltr">flit</bdi>. אם המקבל מוצא <bdi dir="ltr">CRC</bdi> שגוי, הוא זורק את ה-<bdi dir="ltr">flit</bdi> ומבקש <a class="term" href="#g-replay" data-term="replay"><bdi dir="ltr">Replay buffer</bdi></a>. ב-<bdi dir="ltr">NVLink 1</bdi> ה-<bdi dir="ltr">CRC</bdi> הוא <bdi dir="ltr">25</bdi> ביט בתוך ה-<bdi dir="ltr">header</bdi>.</dd>
+      <dt>איפה הוא נמצא</dt><dd>ב-<bdi dir="ltr">DL</bdi>.</dd>
+    </dl>
+    <div class="facts"><span>NVLink 1: 25 bit</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-dl" data-term="dl"><bdi dir="ltr">Data link layer</bdi></a><a class="chip" href="#g-replay" data-term="replay"><bdi dir="ltr">Replay buffer</bdi></a><a class="chip" href="#g-flit" data-term="flit"><bdi dir="ltr">Flit</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s29" data-goto="29">29</a> · <a href="#s30" data-goto="30">30</a> · <a href="#s31" data-goto="31">31</a></p>
+    </article><article class="entry" id="g-replay"><div class="entry-head"><b id=""><bdi dir="ltr">Replay buffer</bdi></b><span><bdi dir="ltr">buffer</bdi> לשליחה חוזרת</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>עותק של <bdi dir="ltr">flits</bdi> שנשלחו ועוד לא אושרו.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>כשהמקבל מוצא <a class="term" href="#g-crc" data-term="crc"><bdi dir="ltr">CRC</bdi></a> שגוי, השולח שולח מחדש מה-<bdi dir="ltr">buffer</bdi> את ה-<bdi dir="ltr">flit</bdi> הפגום ואת כל מה שאחריו. הכול בחומרה, בלי תוכנה.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בצד השולח, ב-<bdi dir="ltr">DL</bdi>.</dd>
+    </dl>
+    <div class="facts"><span>מחיר: בערך סיבוב אחד הלוך-חזור</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-crc" data-term="crc"><bdi dir="ltr">CRC</bdi></a><a class="chip" href="#g-dl" data-term="dl"><bdi dir="ltr">Data link layer</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s29" data-goto="29">29</a> · <a href="#s31" data-goto="31">31</a> · <a href="#s39" data-goto="39">39</a></p>
+    </article><article class="entry" id="g-credit"><div class="entry-head"><b id=""><bdi dir="ltr">Credit</bdi></b><span>אישור מקום פנוי</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>מייצג מקום פנוי ב-<bdi dir="ltr">buffer</bdi> של המקבל.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>השולח מוציא <bdi dir="ltr">credit</bdi> על כל <bdi dir="ltr">flit</bdi>, והמקבל מחזיר <bdi dir="ltr">credit</bdi> כשהוא מפנה מקום. כשאין <bdi dir="ltr">credits</bdi> השולח מחכה. כך אין הצפה ואין אובדן נתונים.</dd>
+      <dt>איפה הוא נמצא</dt><dd>ב-<bdi dir="ltr">DL</bdi>, בשני הצדדים.</dd>
+    </dl>
+    <div class="facts"><span>buffer ≥ bandwidth × round trip</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-dl" data-term="dl"><bdi dir="ltr">Data link layer</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s29" data-goto="29">29</a> · <a href="#s32" data-goto="32">32</a></p>
+    </article><article class="entry" id="g-minion"><div class="entry-head"><b id=""><bdi dir="ltr">MINION</bdi></b><span>בקר <bdi dir="ltr">Falcon</bdi> בבלוק הקישור</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>מיקרו-בקר קטן בכל <bdi dir="ltr">IOCTRL</bdi>, וגם בכל <bdi dir="ltr">NVSwitch</bdi>.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>מריץ <bdi dir="ltr">microcode</bdi> שמבצע את הפקודות הנמוכות של <a class="term" href="#g-training" data-term="training"><bdi dir="ltr">Link training</bdi></a>: הדלקת ה-<a class="term" href="#g-phy" data-term="phy"><bdi dir="ltr">PHY / SerDes</bdi></a>, הפעלת ה-<bdi dir="ltr">lanes</bdi> והפעלת ה-<a class="term" href="#g-dl" data-term="dl"><bdi dir="ltr">Data link layer</bdi></a>. <a class="term" href="#g-gsprm" data-term="gsprm"><bdi dir="ltr">GSP-RM</bdi></a> או הדרייבר טוענים ומפעילים אותו.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בתוך <bdi dir="ltr">IOCTRL</bdi>.</dd>
+    </dl>
+    <div class="facts"><span>Falcon</span><span>kernel_minion_gv100.c</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-ioctrl" data-term="ioctrl"><bdi dir="ltr">IOCTRL</bdi></a><a class="chip" href="#g-training" data-term="training"><bdi dir="ltr">Link training</bdi></a><a class="chip" href="#g-gsprm" data-term="gsprm"><bdi dir="ltr">GSP-RM</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s28" data-goto="28">28</a> · <a href="#s35" data-goto="35">35</a> · <a href="#s37" data-goto="37">37</a> · <a href="#s41" data-goto="41">41</a></p>
+    </article><article class="entry" id="g-linkstates"><div class="entry-head"><b id=""><bdi dir="ltr">Link states</bdi></b><span>מצבי הקישור</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>השלבים שהקישור עובר בהקמה.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd><bdi dir="ltr">OFF</bdi>: כבוי. <bdi dir="ltr">SAFE</bdi>: מצב איטי ל-<a class="term" href="#g-training" data-term="training"><bdi dir="ltr">Link training</bdi></a>, הגדרות וגילוי מי מחובר בצד השני. <bdi dir="ltr">HS (High Speed)</bdi>: מעביר תעבורה. שגיאות רבות מחזירות ל-<bdi dir="ltr">SAFE</bdi> לאימון מחדש.</dd>
+      <dt>איפה הוא נמצא</dt><dd>מוגדרים ב-<bdi dir="ltr">nvlink.h</bdi> בקוד הפתוח.</dd>
+    </dl>
+    <div class="facts"><span>OFF → SAFE → HS</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-training" data-term="training"><bdi dir="ltr">Link training</bdi></a><a class="chip" href="#g-minion" data-term="minion"><bdi dir="ltr">MINION</bdi></a><a class="chip" href="#g-nvlcore" data-term="nvlcore"><bdi dir="ltr">NVLink core library</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s36" data-goto="36">36</a></p>
+    </article><article class="entry" id="g-training"><div class="entry-head"><b id=""><bdi dir="ltr">Link training</bdi></b><span>אימון הקישור</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>התהליך שמביא קישור ממצב כבוי למהירות מלאה.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>כולל כיול של ה-<bdi dir="ltr">SerDes</bdi>, כיוון <bdi dir="ltr">equalization</bdi>, יישור ה-<bdi dir="ltr">lanes</bdi> והפעלת ה-<bdi dir="ltr">DL</bdi>. ה-<a class="term" href="#g-minion" data-term="minion"><bdi dir="ltr">MINION</bdi></a> מבצע את הפקודות, וה-<a class="term" href="#g-nvlcore" data-term="nvlcore"><bdi dir="ltr">NVLink core library</bdi></a> מנהל את הסדר.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בזמן ה-<bdi dir="ltr">bring-up</bdi>, במצב <bdi dir="ltr">SAFE</bdi>.</dd>
+    </dl>
+    
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-minion" data-term="minion"><bdi dir="ltr">MINION</bdi></a><a class="chip" href="#g-phy" data-term="phy"><bdi dir="ltr">PHY / SerDes</bdi></a><a class="chip" href="#g-linkstates" data-term="linkstates"><bdi dir="ltr">Link states</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s35" data-goto="35">35</a> · <a href="#s36" data-goto="36">36</a></p>
+    </article><article class="entry" id="g-nvlcore"><div class="entry-head"><b id=""><bdi dir="ltr">NVLink core library</bdi></b><span>ספריית הליבה של <bdi dir="ltr">NVLink</bdi> בדרייבר</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>קוד בדרייבר שמנהל את כל ה-<bdi dir="ltr">links</bdi>.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>מגלה מי מחובר לכל <bdi dir="ltr">link (discovery)</bdi>, מריץ את סדר האימון ומחזיק את מצב כל <bdi dir="ltr">link</bdi>.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בדרייבר, על ה-<bdi dir="ltr">CPU</bdi>.</dd>
+    </dl>
+    <div class="facts"><span>src/common/nvlink/</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-driver" data-term="driver"><bdi dir="ltr">Driver</bdi></a><a class="chip" href="#g-training" data-term="training"><bdi dir="ltr">Link training</bdi></a><a class="chip" href="#g-linkstates" data-term="linkstates"><bdi dir="ltr">Link states</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s37" data-goto="37">37</a></p>
+    </article><article class="entry" id="g-xid74"><div class="entry-head"><b id=""><bdi dir="ltr">Xid 74</bdi></b><span>שגיאת <bdi dir="ltr">NVLink</bdi> בלוג</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>קוד השגיאה שהדרייבר רושם על תקלת <bdi dir="ltr">NVLink</bdi>.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>מופיע כש-<bdi dir="ltr">replay</bdi> לא מספיק והקישור נכנס להתאוששות או יורד. כאן התוכנה רואה את התקלה.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בלוגים של הדרייבר במחשב המארח.</dd>
+    </dl>
+    
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-replay" data-term="replay"><bdi dir="ltr">Replay buffer</bdi></a><a class="chip" href="#g-smi" data-term="smi"><bdi dir="ltr">nvidia-smi</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s39" data-goto="39">39</a></p>
+    </article></div><div class="gloss-area"><h3><bdi dir="ltr">NVSwitch</bdi> ומערכות גדולות</h3><article class="entry" id="g-nvswitch"><div class="entry-head"><b id=""><bdi dir="ltr">NVSwitch</bdi></b><span>מתג <bdi dir="ltr">NVLink</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>שבב מתג שכל ה-<bdi dir="ltr">GPU</bdi>-ים מתחברים אליו.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>נותן לכל זוג <bdi dir="ltr">GPU</bdi>-ים את מלוא רוחב הפס, עם קפיצה אחת. בתוכו <a class="term" href="#g-nport" data-term="nport"><bdi dir="ltr">NPORTs</bdi></a>, <a class="term" href="#g-minion" data-term="minion"><bdi dir="ltr">MINION</bdi></a> ו-<a class="term" href="#g-soe" data-term="soe"><bdi dir="ltr">SOE</bdi></a>.</dd>
+      <dt>איפה הוא נמצא</dt><dd>על הלוח, בין ה-<bdi dir="ltr">GPU</bdi>-ים. ב-<bdi dir="ltr">HGX H100</bdi> יש <bdi dir="ltr">4</bdi>.</dd>
+    </dl>
+    <div class="facts"><span>64 פורטים (דור 3)</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-nport" data-term="nport"><bdi dir="ltr">NPORT</bdi></a><a class="chip" href="#g-soe" data-term="soe"><bdi dir="ltr">SOE</bdi></a><a class="chip" href="#g-fm" data-term="fm"><bdi dir="ltr">Fabric Manager</bdi></a><a class="chip" href="#g-sharp" data-term="sharp"><bdi dir="ltr">NVLink SHARP</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s27" data-goto="27">27</a> · <a href="#s40" data-goto="40">40</a> · <a href="#s42" data-goto="42">42</a> · <a href="#s43" data-goto="43">43</a></p>
+    </article><article class="entry" id="g-nport"><div class="entry-head"><b id=""><bdi dir="ltr">NPORT</bdi></b><span>פורט של המתג</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>פורט <bdi dir="ltr">NVLink</bdi> בתוך ה-<bdi dir="ltr">NVSwitch</bdi>.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>מקבל <bdi dir="ltr">packets</bdi> ומנתב אותם לפורט שמוביל ל-<bdi dir="ltr">GPU</bdi> היעד, לפי טבלאות ש-<a class="term" href="#g-fm" data-term="fm"><bdi dir="ltr">Fabric Manager</bdi></a> הגדיר.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בתוך <bdi dir="ltr">NVSwitch</bdi>.</dd>
+    </dl>
+    
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-nvswitch" data-term="nvswitch"><bdi dir="ltr">NVSwitch</bdi></a><a class="chip" href="#g-fm" data-term="fm"><bdi dir="ltr">Fabric Manager</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s41" data-goto="41">41</a> · <a href="#s42" data-goto="42">42</a></p>
+    </article><article class="entry" id="g-soe"><div class="entry-head"><b id=""><bdi dir="ltr">SOE</bdi></b><span>הבקר של ה-<bdi dir="ltr">NVSwitch</bdi></span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>בקר שמריץ קושחה בתוך ה-<bdi dir="ltr">NVSwitch</bdi>.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>מטפל במשימות של המתג, למשל טמפרטורה וניהול כבלים. הדרייבר ב-<bdi dir="ltr">CPU</bdi> מאתחל אותו.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בתוך <bdi dir="ltr">NVSwitch</bdi>.</dd>
+    </dl>
+    
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-nvswitch" data-term="nvswitch"><bdi dir="ltr">NVSwitch</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s41" data-goto="41">41</a></p>
+    </article><article class="entry" id="g-sharp"><div class="entry-head"><b id=""><bdi dir="ltr">NVLink SHARP</bdi></b><span>חישוב בתוך המתג</span></div>
+    <dl class="fields">
+      <dt>מה זה</dt><dd>יכולת של ה-<bdi dir="ltr">NVSwitch</bdi> לחבר נתונים בעצמו.</dd>
+      <dt>מה הוא עושה במערכת</dt><dd>ב-<bdi dir="ltr">all-reduce</bdi> כל <bdi dir="ltr">GPU</bdi> שולח את החלק שלו פעם אחת, ה-<a class="term" href="#g-nvswitch" data-term="nvswitch"><bdi dir="ltr">NVSwitch</bdi></a> סוכם ושולח את התוצאה לכולם. כך עוברים פחות נתונים בכל <bdi dir="ltr">link</bdi>.</dd>
+      <dt>איפה הוא נמצא</dt><dd>בתוך <bdi dir="ltr">NVSwitch</bdi>.</dd>
+    </dl>
+    <div class="facts"><span>in-network reduction</span></div>
+    <div class="chips"><span class="chip-label">קשור ל:</span><a class="chip" href="#g-nvswitch" data-term="nvswitch"><bdi dir="ltr">NVSwitch</bdi></a></div>
+    <p class="seen-in">מופיע בשלבים: <a href="#s43" data-goto="43">43</a></p>
+    </article></div></section>
+  </main>
+</div>
+</body>
+</html>
